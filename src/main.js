@@ -184,6 +184,7 @@ function createWindow() {
                                   host.includes('yandex') || 
                                   host.includes('anixart') || 
                                   host.includes('shikimori') ||
+                                  host.includes('anixmirai') ||
                                   host.includes('vk.com');
                                   
           if (isBlockedDomain) {
@@ -250,7 +251,8 @@ app.on('ready', () => {
       if (fs.existsSync(filePath)) {
         return net.fetch(`file:///${normalizedPath}`);
       } else {
-        const response = await net.fetch(originalUrl, {
+        const fetchUrl = originalUrl.includes('anixmirai.com') ? `https://images.weserv.nl/?url=${originalUrl}&w=300&output=webp` : originalUrl;
+        const response = await net.fetch(fetchUrl, {
           headers: {
             'User-Agent': UserAgent,
             'Referer': 'https://anixart.tv/'
