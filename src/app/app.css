@@ -1,0 +1,206 @@
+:root {
+  font-family: "Inter", serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+
+  --watching-color: #52b628;
+  --watching-shadow-color: #58d0257e;
+  --plan-color: #9314dc;
+  --plan-shadow-color: #9314dc7e;
+  --completed-color: #4577b7;
+  --completed-shadow-color: #4577b77e;
+  --hold-on-color: #df960e;
+  --hold-on-shadow-color: #FFA5007e;
+  --dropped-color: #be1414;
+  --dropped-shadow-color: #FF00007e;
+  --good-reputation-color: #4AA424;
+  --bad-reputation-color: #bb0b0b;
+  --ban-color: #A12B2B;
+  --rate-back-color: rgb(70, 68, 65);
+  --player-timeline-progress-color: #FF0000;
+  --player-timeline-loaded-color: #5A5A5A;
+  --player-middle-button: #1a191950;
+  --player-middle-button-select: #1a1919dc;
+  --slider-button-inactive-color: #3b3b3b;
+  --slider-button-active-color: #cc2e56;
+  --slider-button-dot-color: #ffffff;
+  --warning-color: #ddca1b;
+  --info-color: #1b8fdd;
+  --danger-color: #dd1b1b;
+  --anime-full-row-title-size: 1.25em;
+  --anime-full-row-title-weight: bold;
+
+  --anime-full-row-epCount-size: 0.875em;
+  --anime-full-row-epCount-weight: bold;
+
+  --anime-full-row-description-size: 0.875em;
+  --anime-full-row-description-weight: 500;
+  --anime-full-row-description-line-height: 1.5em;
+}
+
+:focus {
+  outline: none;
+}
+
+.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+  position: relative;
+  font-family: 'Inter', sans-serif;
+  color: var(--main-text-color);
+}
+
+body {
+  background-color: var(--background-color);
+  margin: 0;
+  display: flex;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+.dark-theme {
+  --background-color: #121212;
+  --alt-background-color: #1a1919;
+  --skeleton-background-color: #1c1b1b;
+  --skeleton-animation-color: #2f2c2c;
+  --select-button-left-color: #111111;
+  --click-on-button-player-color: #0f0f0f;
+  --comment-spoiler-color: #0f0f0f7c;
+  --select-button-color: #202020;
+  --alt-gray-background-color: #2C2828;
+  --main-text-color: rgb(216 213 208);
+  --secondary-text-color: rgb(175 168 158);
+  --third-text-color: rgb(161, 155, 146);
+  --gray-btn: #6A6A6A;
+  --settings-dropdown-selected-color: rgb(49, 48, 45);
+  color: var(--main-text-color);
+}
+
+.light-theme {
+  --background-color: #ffffff;
+  --alt-background-color: #f9f9f9;
+  --skeleton-background-color: #f0f0f0;
+  --skeleton-animation-color: #e0e0e0;
+  --select-button-left-color: rgba(0, 0, 0, 0.05);
+  --click-on-button-player-color: #ededed;
+  --comment-spoiler-color: rgba(0, 0, 0, 0.05);
+  --select-button-color: #33333380;
+  --main-text-color: #1f1f1f;
+  --secondary-text-color: #4d4d4d;
+  --third-text-color: #7a7a7a;
+  --gray-btn: #c0c0c0;
+  --settings-dropdown-selected-color: rgb(196, 193, 187);
+  color: var(--main-text-color);
+}
+
+@keyframes skeletonAnimation {
+  0% {
+    background-color: var(--skeleton-background-color);
+  }
+  50% {
+    background-color: var(--skeleton-animation-color);
+  }
+  100% {
+    background-color: var(--skeleton-background-color);
+  }
+}
+
+.hide {
+  display: none !important;
+}
+
+.flex-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.unselectable {
+  user-select: none;
+  -o-user-select: none;
+  -moz-user-select: none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+}
+
+.hide-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+/* Sidebar Hover Glow & Animations */
+.left-menu-button svg {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease-in-out !important;
+    will-change: transform, filter, opacity;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    opacity: 0.6;
+}
+.left-menu-button:hover svg, .left-menu-button.selected svg {
+    transform: scale(1.15) translateX(4px) !important;
+    filter: drop-shadow(0 0 8px currentColor) !important;
+    opacity: 1 !important;
+}
+
+.left-menu-profile img {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+.left-menu-profile:hover img {
+    transform: scale(1.15) translateX(4px) !important;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Sidebar Tooltips (via ::after) */
+.left-menu-button, .left-menu-profile {
+    position: relative;
+}
+
+.left-menu-button::after, .left-menu-profile::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 80%;
+    top: 50%;
+    transform: translateY(-50%) translateX(10px);
+    background-color: #2b2d31;
+    color: #ffffff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+}
+
+.left-menu-button:hover::after, .left-menu-profile:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(20px);
+}

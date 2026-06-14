@@ -1,0 +1,60 @@
+{
+  "name": "anidesk",
+  "version": "0.0.1-beta.7",
+  "description": "Unofficial desktop client of Anixart",
+  "main": "./src/main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "startOnlyElectron": "electron-forge start",
+    "start": "sirv public --no-clear",
+    "dev": "rollup -c -w --bundleConfigAsCjs",
+    "electron": "wait-on http://localhost:8080 && electron .",
+    "electron-dev": "concurrently \"npm run dev\" \"npm run electron\"",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "build": "rollup -c --bundleConfigAsCjs",
+    "buildAndMake": "npm run build && npm run make"
+  },
+  "keywords": [
+    "anixart"
+  ],
+  "author": "DesConnet, hack1exe",
+  "license": "ISC",
+  "devDependencies": {
+    "@babichjacob/svelte-localstorage": "^1.1.2",
+    "@electron-forge/cli": "^7.6.1",
+    "@electron-forge/maker-deb": "^7.10.2",
+    "@electron-forge/maker-rpm": "^7.10.2",
+    "@electron-forge/maker-squirrel": "^7.10.2",
+    "@electron-forge/maker-zip": "^7.10.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.10.2",
+    "@electron-forge/plugin-fuses": "^7.10.2",
+    "@electron/fuses": "^1.8.0",
+    "@rollup/plugin-commonjs": "^28.0.9",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "concurrently": "^9.2.1",
+    "electron": "^39.1.0",
+    "lottie-svelte": "^1.3.7",
+    "rollup": "^4.52.5",
+    "rollup-obfuscator": "^4.1.1",
+    "rollup-plugin-css-only": "^4.5.5",
+    "rollup-plugin-livereload": "^2.0.5",
+    "rollup-plugin-string": "^3.0.0",
+    "rollup-plugin-svelte": "^7.2.3",
+    "rollup-plugin-svgo": "^2.0.0",
+    "sirv-cli": "^3.0.1",
+    "svelte": "^5.42.3",
+    "wait-on": "^9.0.1"
+  },
+  "dependencies": {
+    "@xhayper/discord-rpc": "^1.1.8",
+    "anime4k-webgpu": "^1.0.0",
+    "anixartjs": "^0.1.7",
+    "electron-serve": "^3.0.0",
+    "electron-squirrel-startup": "^1.0.1",
+    "openurl": "^1.1.1"
+  }
+}
