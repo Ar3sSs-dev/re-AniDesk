@@ -35,5 +35,5 @@
 Эта команда автоматически скачает последнюю версию установщика во временную папку и запустит его. Для этого откройте PowerShell (Пуск -> PowerShell) и скопируйте туда следующий код:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/angelsolwayscry-maker/AniDesk-App/releases/download/v1.0.0/anidesk-0.0.1-beta.7-win32.exe" -OutFile "$env:TEMP\anidesk_setup.exe"; Start-Process "$env:TEMP\anidesk_setup.exe"
+Invoke-WebRequest -Uri "https://github.com/Ar3sSs-dev/AniDesk-App/releases/download/v1.0.0/anidesk-0.0.1-beta.7-win32.exe" -OutFile "$env:TEMP\anidesk_setup.exe"; Start-Process "$env:TEMP\anidesk_setup.exe"
 ```
