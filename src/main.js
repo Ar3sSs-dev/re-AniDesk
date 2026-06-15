@@ -216,19 +216,13 @@ function createWindow() {
     }
   );
 
-  const isVideoDomain = (host) => {
-    return host.includes('kodik') || host.includes('sibnet.ru');
-  };
-
   mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
     (details, callback) => {
       const { url, requestHeaders } = details;
       const host = new URL(url).host;
 
       UpsertKeyValue(requestHeaders, 'Referer', null);
-      if (isVideoDomain(host)) {
-        UpsertKeyValue(requestHeaders, 'Access-Control-Allow-Origin', ['*']);
-      }
+      UpsertKeyValue(requestHeaders, 'Access-Control-Allow-Origin', ['*']);
 
       if (host == "video.sibnet.ru") {
         UpsertKeyValue(requestHeaders, 'Referer', url);
@@ -245,13 +239,9 @@ function createWindow() {
   );
 
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    const { url, responseHeaders, resourceType } = details;
-    const host = new URL(url).host;
-    
-    if (isVideoDomain(host)) {
-      UpsertKeyValue(responseHeaders, 'Access-Control-Allow-Origin', ['*']);
-      UpsertKeyValue(responseHeaders, 'Access-Control-Allow-Headers', ['*']);
-    }
+    const { responseHeaders, resourceType } = details;
+    UpsertKeyValue(responseHeaders, 'Access-Control-Allow-Origin', ['*']);
+    UpsertKeyValue(responseHeaders, 'Access-Control-Allow-Headers', ['*']);
 
     if (resourceType === 'image') {
       UpsertKeyValue(responseHeaders, 'Cache-Control', ['public, max-age=31536000, immutable']);
@@ -385,7 +375,10 @@ app.on('activate', function () {
   if (mainWindow === null) createWindow()
 });
 
-// SSL check bypass removed to prevent MitM vulnerabilities
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+  event.preventDefault();
+  callback(true);
+})
 
 ipcMain.handle("analytics:trackEvent", (_, eventName, props) => {
   trackEvent(eventName, props);
