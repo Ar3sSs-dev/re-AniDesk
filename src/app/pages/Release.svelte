@@ -28,6 +28,7 @@
     const release = anixApi.release.info(args.id, true);
 
     release.then((data) => {
+        if (!data || !data.release) return;
         discordRPC.setActivity({
             type: 3,
             state: "На странице релиза",
@@ -43,7 +44,7 @@
                 { label: "Ссылка на клиент", url: "https://anidesk.ds1nc.ru/" },
             ],
         });
-    });
+    }).catch(() => {});
 
     let showSelectEpisodeModal,
         showCommentsModal,

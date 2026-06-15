@@ -56,9 +56,7 @@ function saveLibrary(lib) {
             // Убираем .tmp если он остался
             await fs.promises.unlink(tmpPath).catch(() => {});
         }
-    }).then(() => {
-        saveLock = Promise.resolve();
-    });
+    }).catch((e) => { logDownload('LIBRARY', 'Queue error: ' + e); });
     return saveLock;
 }
 
@@ -183,8 +181,6 @@ function initDownloader(mainWindow) {
                 const tmpPath = offlineLibraryPath + '.tmp';
                 await fs.promises.writeFile(tmpPath, JSON.stringify(lib, null, 2));
                 await fs.promises.rename(tmpPath, offlineLibraryPath);
-            }).then(() => {
-                saveLock = Promise.resolve();
             });
 
             delete activeDownloads[downloadId];

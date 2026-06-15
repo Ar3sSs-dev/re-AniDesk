@@ -5,6 +5,7 @@
     import AuthPlaceholder from "./AuthPlaceholder.svelte";
     import DropdownButton from "../components/buttons/DropdownButton.svelte"
     import utils from "../utils";
+    import { onDestroy } from "svelte";
 
     export let args;
 
@@ -30,23 +31,28 @@
     async function getMainPage() {
         let data;
 
-        if (args.typeBookmark == 0) {
-            data = await anixApi.profile.getFavorites({
-                page,
-                sort: args.sort,
-                filter_announce: 0,
-            });
-        } else {
-            data = await anixApi.profile.getBookmarks({
-                type: args.typeBookmark,
-                id: args?.id ?? null,
-                sort: args.sort,
-                page,
-            });
-        }
+        try {
+            if (args.typeBookmark == 0) {
+                data = await anixApi.profile.getFavorites({
+                    page,
+                    sort: args.sort,
+                    filter_announce: 0,
+                });
+            } else {
+                data = await anixApi.profile.getBookmarks({
+                    type: args.typeBookmark,
+                    id: args?.id ?? null,
+                    sort: args.sort,
+                    page,
+                });
+            }
 
-        allData = allData.concat(data.content);
-        updateInfo = false;
+            allData = allData.concat(data.content);
+        } catch (e) {
+            page--;
+        } finally {
+            updateInfo = false;
+        }
     }
 
     function setTotalCount(count) {
@@ -102,13 +108,20 @@
         }
     };
 
+    let scrollElem = null;
+
     if (args?.isModal) {
         waitForElm(".releases-container.modal-content").then((elem) => {
+            scrollElem = elem;
             elem.addEventListener("scroll", scrollEvent);
         });
     } else {
         setViewportScrollEvent(scrollEvent);
     }
+
+    onDestroy(() => {
+        if (scrollElem) scrollElem.removeEventListener("scroll", scrollEvent);
+    });
 </script>
 
 <MetaInfo subTitle="Закладки" />

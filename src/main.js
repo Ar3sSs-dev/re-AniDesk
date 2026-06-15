@@ -146,12 +146,13 @@ function UpsertKeyValue(obj, keyToChange, value) {
   const keyToChangeLower = keyToChange.toLowerCase();
   for (const key of Object.keys(obj)) {
     if (key.toLowerCase() === keyToChangeLower) {
-      obj[key] = value;
+      if (value === null) delete obj[key];
+      else obj[key] = value;
       return;
     }
   }
 
-  obj[keyToChange] = value;
+  if (value !== null) obj[keyToChange] = value;
 }
 
 function createWindow() {

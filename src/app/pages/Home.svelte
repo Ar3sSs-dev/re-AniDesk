@@ -12,9 +12,14 @@
     let updateInfo = false;
 
     async function getMainPage() {
-        const data = await anixApi.release.filter(page, filterArgs, true);
-        allData = allData.concat(data.content);
-        updateInfo = false;
+        try {
+            const data = await anixApi.release.filter(page, filterArgs, true);
+            allData = allData.concat(data.content);
+        } catch (e) {
+            page--;
+        } finally {
+            updateInfo = false;
+        }
     }
 
     function setReleasesType(type) {

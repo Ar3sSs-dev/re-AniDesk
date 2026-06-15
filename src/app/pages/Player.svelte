@@ -187,9 +187,27 @@
             }
         }
 
-        // Уничтожаем Anime4K пайплайн перед выходом из плеера
-        if (currentAnime4kInstance) {
-            try { currentAnime4kInstance.destroy?.(); } catch(e) {}
+        // Уничтожаем Anime4K пайплайн и его циклы перед выходом из плеера
+        if (currentAnime4kInstance || window._anime4kRafIds?.size > 0 || window._anime4kRvfcIds?.size > 0) {
+            if (window._anime4kRafIds) {
+                for (const id of window._anime4kRafIds) window.cancelAnimationFrame(id);
+                window._anime4kRafIds.clear();
+            }
+            if (window._anime4kRvfcIds) {
+                for (const id of window._anime4kRvfcIds) {
+                    if (video && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(id);
+                }
+                window._anime4kRvfcIds.clear();
+            }
+
+            if (window._anime4kDevice) {
+                window._anime4kDevice.destroy();
+                window._anime4kDevice = null;
+            }
+            try {
+                if (canvas) canvas.getContext("webgpu")?.unconfigure();
+            } catch (e) {}
+
             currentAnime4kInstance = null;
         }
 
@@ -379,9 +397,76 @@
             return;
         }
 
-        // Уничтожаем предыдущий инстанс, чтобы не плодить параллельные циклы рендера
-        if (currentAnime4kInstance) {
-            try { currentAnime4kInstance.destroy?.(); } catch(e) {}
+        // --- FIX: Отслеживание и остановка циклов рендера anime4k-webgpu ---
+        // Библиотека anime4k-webgpu не экспортирует метод destroy(), из-за чего циклы рендера 
+        // накапливаются при каждом изменении окна или пресета, вызывая WebGPU TextureView errors.
+        if (!window._anime4kPatched) {
+            window._anime4kRafIds = new Set();
+            window._anime4kRvfcIds = new Set();
+
+            const origRaf = window.requestAnimationFrame;
+            window.requestAnimationFrame = function(cb) {
+                if (window._captureAnime4k || window._insideAnime4k) {
+                    let id;
+                    const wrapped = function(...args) {
+                        window._insideAnime4k = true;
+                        try { return cb(...args); } finally { 
+                            window._insideAnime4k = false; 
+                            window._anime4kRafIds.delete(id); 
+                        }
+                    };
+                    id = origRaf.call(window, wrapped);
+                    window._anime4kRafIds.add(id);
+                    return id;
+                }
+                return origRaf.call(window, cb);
+            };
+
+            const origRvfc = HTMLVideoElement.prototype.requestVideoFrameCallback;
+            if (origRvfc) {
+                HTMLVideoElement.prototype.requestVideoFrameCallback = function(cb) {
+                    if (window._captureAnime4k || window._insideAnime4k) {
+                        let id;
+                        const wrapped = function(...args) {
+                            window._insideAnime4k = true;
+                            try { return cb(...args); } finally { 
+                                window._insideAnime4k = false; 
+                                window._anime4kRvfcIds.delete(id);
+                            }
+                        };
+                        id = origRvfc.call(this, wrapped);
+                        window._anime4kRvfcIds.add(id);
+                        return id;
+                    }
+                    return origRvfc.call(this, cb);
+                };
+            }
+            window._anime4kPatched = true;
+        }
+
+        // Уничтожаем предыдущий инстанс, жестко убиваем его циклы и сбрасываем контекст канваса
+        if (currentAnime4kInstance || window._anime4kRafIds?.size > 0 || window._anime4kRvfcIds?.size > 0) {
+            for (const id of window._anime4kRafIds) window.cancelAnimationFrame(id);
+            window._anime4kRafIds.clear();
+
+            for (const id of window._anime4kRvfcIds) {
+                if (video && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(id);
+            }
+            window._anime4kRvfcIds.clear();
+
+            if (window._anime4kDevice) {
+                window._anime4kDevice.destroy();
+                window._anime4kDevice = null;
+            }
+            try {
+                canvas.getContext("webgpu")?.unconfigure();
+            } catch (e) {}
+
+            // Заменяем канвас на новый, чтобы старый Device не конфликтовал с новым в getContext()
+            const newCanvas = canvas.cloneNode(true);
+            canvas.parentNode.replaceChild(newCanvas, canvas);
+            canvas = newCanvas;
+
             currentAnime4kInstance = null;
         }
 
@@ -415,10 +500,12 @@
         const nativeDimensions = { width: videoWidth, height: videoHeight };
         const targetDimensions = { width: targetWidth, height: targetHeight };
 
+        window._captureAnime4k = true;
         const instance = await render({
             video,
             canvas,
             pipelineBuilder: (device, inputTexture) => {
+                window._anime4kDevice = device;
                 if (!_upscaleEnabled) {
                     return [new Original({ device, inputTexture, nativeDimensions, targetDimensions })];
                 }
@@ -438,9 +525,10 @@
                 return [new upscaleModeMap[_mode]({ device, inputTexture, nativeDimensions, targetDimensions })];
             },
         });
+        window._captureAnime4k = false;
 
-        // Сохраняем инстанс для последующей очистки
-        currentAnime4kInstance = instance;
+        // Сохраняем инстанс (хоть он и не используется для очистки, флаг нужен)
+        currentAnime4kInstance = instance || true;
 
         // Следим за изменением реального размера канваса через ResizeObserver
         if (canvasResizeObserver) {
