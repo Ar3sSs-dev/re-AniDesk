@@ -9,6 +9,7 @@ module.exports = {
         "myCollection",
         "relatedRelease",
         "friend",
+        "episode",
     ], /*Отсеиваем неподдерживаемые уведомления в приложении чтобы потом небыло проблем с их обработкой 
         (В последствии я буду добавлять новые типы уведомлений)*/
 
@@ -52,11 +53,7 @@ module.exports = {
 
     upscaleDefaultSettings: {
         enabled: false,
-        mode: 15,
-        customPreset: {
-            name: "Мой пресет",
-            stages: [15, 7] // ModeB + GANUUL по умолчанию
-        }
+        mode: 15
     },
 
     endpointValues: [
@@ -103,11 +100,13 @@ module.exports = {
         { label: "16:9", value: "16-9" },
         { label: "4:3", value: "4-3" },
         { label: "Fit", value: "fit" },
+        { label: "Оригинальное", value: "original" },
     ],
 
     playerSpeedValues: [
         { label: "0.5x", value: 0.5 },
         { label: "1x", value: 1.0 },
+        { label: "1.25x", value: 1.25 },
         { label: "1.5x", value: 1.5 },
         { label: "2x", value: 2.0 }
     ],
@@ -128,7 +127,6 @@ module.exports = {
     ],
 
     upscaleValues: [
-        { label: "⚙️ Пользовательский пресет", value: 20, description: "Ваша личная комбинация фильтров, собранная вручную." },
         { label: "ModeA [Preset]", value: 14, description: "Быстрый пресет с умеренным восстановлением и апскейлом." },
         { label: "ModeB [Preset]", value: 15, description: "Сбалансированный пресет с акцентом на детализацию." },
         { label: "ModeC [Preset]", value: 16, description: "Качественный пресет с более агрессивным улучшением." },
@@ -149,30 +147,6 @@ module.exports = {
         { label: "CNNx2UL [Upscale]", value: 11, description: "Универсальный и сбалансированный апскейл в 2 раза." },
         { label: "GANx3L [Upscale]", value: 12, description: "Апскейл в 3 раза с помощью GAN — нацелен на высокое качество." },
         { label: "GANx4UUL [Upscale]", value: 13, description: "Максимальный апскейл в 4 раза через GAN — для максимальной детализации." },
-    ],
-
-    // Список шейдеров для конструктора пользовательского пресета (без пресетных режимов)
-    upscaleStageOptions: [
-        { label: "DoG — Убрать размытие", value: 0, group: "🔍 Deblur" },
-        { label: "BilateralMean — Шумоподавление", value: 1, group: "🔇 Denoise" },
-        { label: "CNNM — Восстановление (M)", value: 2, group: "🧠 Restore" },
-        { label: "CNNSoftM — Мягкое восстановление", value: 3, group: "🧠 Restore" },
-        { label: "CNNSoftVL — Лёгкое мягкое восстановление", value: 4, group: "🧠 Restore" },
-        { label: "CNNVL — Быстрое восстановление", value: 5, group: "🧠 Restore" },
-        { label: "CNNUL — Универсальное восстановление", value: 6, group: "🧠 Restore" },
-        { label: "GANUUL — GAN восстановление", value: 7, group: "🧠 Restore" },
-        { label: "CNNx2M — Апскейл x2 (M)", value: 8, group: "⬆️ Upscale" },
-        { label: "CNNx2VL — Апскейл x2 (VL)", value: 9, group: "⬆️ Upscale" },
-        { label: "DenoiseCNNx2VL — Апскейл x2 + шумоподавление", value: 10, group: "⬆️ Upscale" },
-        { label: "CNNx2UL — Апскейл x2 (UL)", value: 11, group: "⬆️ Upscale" },
-        { label: "GANx3L — Апскейл x3 GAN", value: 12, group: "⬆️ Upscale" },
-        { label: "GANx4UUL — Апскейл x4 GAN", value: 13, group: "⬆️ Upscale" },
-        { label: "ModeA — Пресет A", value: 14, group: "🎯 Preset" },
-        { label: "ModeB — Пресет B", value: 15, group: "🎯 Preset" },
-        { label: "ModeC — Пресет C", value: 16, group: "🎯 Preset" },
-        { label: "ModeAA — Пресет A+A", value: 17, group: "🎯 Preset" },
-        { label: "ModeBB — Пресет B+B", value: 18, group: "🎯 Preset" },
-        { label: "ModeCA — Пресет C+A", value: 19, group: "🎯 Preset" },
     ],
 
     getStringTime(time) {

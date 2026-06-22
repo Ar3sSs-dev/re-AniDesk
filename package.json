@@ -4,7 +4,7 @@
   "description": "Unofficial desktop client of Anixart",
   "main": "./src/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "startOnlyElectron": "electron-forge start",
     "start": "sirv public --no-clear",
     "dev": "rollup -c -w --bundleConfigAsCjs",
@@ -19,7 +19,7 @@
     "anixart"
   ],
   "author": "DesConnet, hack1exe",
-  "license": "ISC",
+  "license": "GPL-2.0",
   "devDependencies": {
     "@babichjacob/svelte-localstorage": "^1.1.2",
     "@electron-forge/cli": "^7.6.1",
@@ -51,7 +51,8 @@
     "svelte-preprocess": "^6.0.5",
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
-    "wait-on": "^9.0.1"
+    "wait-on": "^9.0.1",
+    "vitest": "^2.1.8"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

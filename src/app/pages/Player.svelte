@@ -62,12 +62,10 @@
         playingSettings,
         volPercent;
 
-    // Аниме4К: храним текущий инстанс рендера чтобы убивать перед пересозданием
-    let currentAnime4kInstance = null;
-    // Debounce-таймер для ResizeObserver
-    let resizeDebounceTimer = null;
-    // ResizeObserver для отслеживания фактического размера канваса
-    let canvasResizeObserver = null;
+    let defaultCanvasSize = {
+        width: screen.width,
+        height: screen.height,
+    };
 
     let video,
         canvas,
@@ -77,7 +75,8 @@
         mainDiv,
         hls,
         currentEpisode,
-        startTimestamp;
+        startTimestamp,
+        videoAspect = 16 / 9;
 
     let progressPercent, loadedPercent;
     let seekTarget = 0;
@@ -103,8 +102,6 @@
         playingSettings = value;
     });
 
-    let upscaleEnabled = false;
-
     const upscaleSettingsRaw = localStorageWritable(
         "upscaleSettings",
         utils.upscaleDefaultSettings,
@@ -112,7 +109,6 @@
 
     upscaleSettingsRaw.subscribe((value) => {
         upscaleSettings = value;
-        upscaleEnabled = value.enabled;
     });
 
     let savedTimes;
@@ -125,15 +121,11 @@
         savedTimes = value;
     });
 
+    let upscaleEnabled = upscaleSettings.enabled;
+
     async function changeUpscale(enabled) {
         upscaleEnabled = enabled;
-        // Сохраняем состояние в localStorage — чтобы при перезаходе настройка не сбрасывалась
-        upscaleSettings.enabled = enabled;
-        upscaleSettingsRaw.set({ ...upscaleSettings });
-        // Только если видео уже загружено и разрешение известно
-        if (video && video.videoWidth > 0) {
-            await renderUpscale();
-        }
+        await renderUpscale();
     }
 
     //aspect-16-9
@@ -187,40 +179,6 @@
             }
         }
 
-        // Уничтожаем Anime4K пайплайн и его циклы перед выходом из плеера
-        if (currentAnime4kInstance || window._anime4kRafIds?.size > 0 || window._anime4kRvfcIds?.size > 0) {
-            if (window._anime4kRafIds) {
-                for (const id of window._anime4kRafIds) window.cancelAnimationFrame(id);
-                window._anime4kRafIds.clear();
-            }
-            if (window._anime4kRvfcIds) {
-                for (const id of window._anime4kRvfcIds) {
-                    if (video && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(id);
-                }
-                window._anime4kRvfcIds.clear();
-            }
-
-            if (window._anime4kDevice) {
-                window._anime4kDevice.destroy();
-                window._anime4kDevice = null;
-            }
-            try {
-                if (canvas) canvas.getContext("webgpu")?.unconfigure();
-            } catch (e) {}
-
-            currentAnime4kInstance = null;
-        }
-
-        // Останавливаем ResizeObserver
-        if (canvasResizeObserver) {
-            canvasResizeObserver.disconnect();
-            canvasResizeObserver = null;
-        }
-        if (resizeDebounceTimer) {
-            clearTimeout(resizeDebounceTimer);
-            resizeDebounceTimer = null;
-        }
-
         if (video) {
             video.pause();
             video.removeAttribute('src');
@@ -231,8 +189,6 @@
             video.onloadedmetadata = null;
             video.onwaiting = null;
             video.onplaying = null;
-            video.onended = null;
-            video.onerror = null;
             video = null;
         }
         if (hls) {
@@ -252,298 +208,200 @@
     });
 
     async function playVideo(episode) {
-        // For offline episodes use src directly, skip HLS
-        if (args.isOffline || (episode.url && episode.url.startsWith('anidesk-offline://'))) {
-            const src = episode.url || args.src;
-            video.src = src;
-            args.src = src;
-            args.avaliableQuality = { "720": { src } };
-            await video.play();
-            return;
-        }
-
-        let avaliableQuality, link;
-        let source =
-            typeof episode.source == "number"
-                ? args.episodes.find((x) => episode.source == x.source["@id"])
-                      .source
-                : episode.source;
-
-        switch (source.name) {
-            case "Kodik":
-                let aQ = {};
-                const kLinks = await KodikParser.getDirectLinks(episode.url);
-                for (const [key, value] of Object.entries(kLinks)) {
-                    aQ[key] = {
-                        src: value[0].src,
-                    };
-                }
-                avaliableQuality = aQ;
-                break;
-
-            case "Liberty":
-            case "Libria":
-                await utils.fallback(async () => {
-                    const aLinks = await AniLibriaParser.getDirectLinks(
-                        episode.url,
-                    );
-                    avaliableQuality = aLinks;
-
-                    return true;
-                }, 3);
-                break;
-
-            case "Sibnet":
-                await utils.fallback(async () => {
-                    const link = await Sibnet.Parse(episode.url);
-                    if (!link) return false;
-
-                    avaliableQuality = {
-                        "720": {
-                            src: link,
-                        },
-                    };
-
-                    return true;
-                }, 3);
-                break;
-        }
-
-        const url =
-            avaliableQuality[String(playingSettings.defaultQuality)]?.src ??
-            avaliableQuality["720"]?.src;
-
-        args.avaliableQuality = avaliableQuality;
-
-        link = `${URL.canParse(url) ? url : `https:${url}`}`;
-
-        if (Hls.isSupported() && !new URL(link).pathname.endsWith(".mp4")) {
-            hls.detachMedia();
-            hls.destroy();
-
-            hls = new Hls();
-
-            hls.on(Hls.Events.BUFFER_APPENDING, (e, data) => {
-                loadedPercent =
-                    (data.frag._streams.video.endPTS / video.duration) * 100;
-            });
-
-            hls.loadSource(link);
-            hls.attachMedia(video);
-        } else {
-            video.src = link;
-        }
-
-        args.src = link;
-
-        if (playerSettings.rememberTime) {
-            const timeKey = `${args.release.id}_${episode.position}`;
-            if (savedTimes[timeKey]) {
-                seekTarget = savedTimes[timeKey];
-            } else {
-                seekTarget = 0;
+        try {
+            // For offline episodes use src directly, skip HLS
+            if (args.isOffline || (episode.url && episode.url.startsWith('anidesk-offline://'))) {
+                const src = episode.url || args.src;
+                video.src = src;
+                args.src = src;
+                args.avaliableQuality = { "720": { src } };
+                await video.play();
+                return;
             }
+
+            let avaliableQuality, link;
+            let source = episode.source;
+            if (!source && args.episodes?.[0]?.source) {
+                source = args.episodes[0].source;
+            }
+            if (typeof source === "number") {
+                const found = args.episodes.find((x) => x.source && (x.source["@id"] == source || x.source.id == source));
+                source = found ? found.source : null;
+            }
+
+            if (!source) {
+                console.error("Episode source not found in episodes list");
+                loading = false;
+                return;
+            }
+
+            switch (source.name) {
+                case "Kodik":
+                    let aQ = {};
+                    const kLinks = await KodikParser.getDirectLinks(episode.url);
+                    for (const [key, value] of Object.entries(kLinks)) {
+                        aQ[key] = {
+                            src: value[0].src,
+                        };
+                    }
+                    avaliableQuality = aQ;
+                    break;
+
+                case "Liberty":
+                case "Libria":
+                    await utils.fallback(async () => {
+                        const aLinks = await AniLibriaParser.getDirectLinks(
+                            episode.url,
+                        );
+                        avaliableQuality = aLinks;
+
+                        return true;
+                    }, 3);
+                    break;
+
+                case "Sibnet":
+                    await utils.fallback(async () => {
+                        const link = await Sibnet.Parse(episode.url);
+                        if (!link) return false;
+
+                        avaliableQuality = {
+                            "720": {
+                                src: link,
+                            },
+                        };
+
+                        return true;
+                    }, 3);
+                    break;
+            }
+
+            if (!avaliableQuality) {
+                throw new Error("No video quality links resolved");
+            }
+
+            const url =
+                avaliableQuality[String(playingSettings.defaultQuality)]?.src ??
+                avaliableQuality["720"]?.src;
+
+            if (!url) {
+                throw new Error("No valid quality URL found");
+            }
+
+            args.avaliableQuality = avaliableQuality;
+
+            link = `${URL.canParse(url) ? url : `https:${url}`}`;
+
+            if (Hls.isSupported() && !new URL(link).pathname.endsWith(".mp4")) {
+                hls.detachMedia();
+                hls.destroy();
+
+                hls = new Hls();
+
+                hls.on(Hls.Events.BUFFER_APPENDING, (e, data) => {
+                    loadedPercent =
+                        (data.frag._streams.video.endPTS / video.duration) * 100;
+                });
+
+                hls.loadSource(link);
+                hls.attachMedia(video);
+            } else {
+                video.src = link;
+            }
+
+            args.src = link;
+
+            if (playerSettings.rememberTime) {
+                const timeKey = `${args.release.id}_${episode.position}`;
+                if (savedTimes[timeKey]) {
+                    seekTarget = savedTimes[timeKey];
+                } else {
+                    seekTarget = 0;
+                }
+            }
+
+            await video.play();
+
+            if (!playingSettings.disableHistory && !args.isOffline) {
+                anixApi.release.markEpisodeAsWatched(
+                    args.release.id,
+                    args.episodes[0].source.id,
+                    currentEpisode.position,
+                );
+                anixApi.release.addToHistory(
+                    args.release.id,
+                    args.episodes[0].source.id,
+                    currentEpisode.position,
+                );
+            }
+
+            if (source) {
+                analytics.trackEvent("play_anime", {
+                    source: source.name || "Unknown",
+                    name: episode.name,
+                    releaseTitle: args.release.title_ru,
+                    dubber: source.type?.name || "Unknown",
+                });
+            }
+
+            startTimestamp = Date.now();
+
+            discordRPC.setActivity({
+                type: 3,
+                state: `${episode.name}`,
+                details: args.release.title_ru.slice(0, 127),
+                largeImageKey: "anidesk-transparent",
+                largeImageText: "AniDesk - Anixart Client",
+                startTimestamp: startTimestamp - video.currentTime * 1000,
+                endTimestamp:
+                    startTimestamp + (video.duration - video.currentTime) * 1000,
+                instance: true,
+                buttons: [
+                    {
+                        label: "Ссылка на релиз",
+                        url: `https://anixart.app/release/${args.release.id}`,
+                    },
+                    { label: "Ссылка на клиент", url: "https://anidesk.ds1nc.ru/" },
+                ],
+            });
+        } catch (e) {
+            console.error("Error in playVideo:", e);
+            loading = false;
         }
-
-        await video.play();
-
-        if (!playingSettings.disableHistory && !args.isOffline) {
-            anixApi.release.markEpisodeAsWatched(
-                args.release.id,
-                args.episodes[0].source.id,
-                currentEpisode.position,
-            );
-            anixApi.release.addToHistory(
-                args.release.id,
-                args.episodes[0].source.id,
-                currentEpisode.position,
-            );
-        }
-
-        analytics.trackEvent("play_anime", {
-            source: source.name,
-            name: episode.name,
-            releaseTitle: args.release.title_ru,
-            dubber: source.type.name,
-        });
-
-        startTimestamp = Date.now();
-
-        discordRPC.setActivity({
-            type: 3,
-            state: `${episode.name}`,
-            details: args.release.title_ru.slice(0, 127),
-            largeImageKey: "anidesk-transparent",
-            largeImageText: "AniDesk - Anixart Client",
-            startTimestamp: startTimestamp - video.currentTime * 1000,
-            endTimestamp:
-                startTimestamp + (video.duration - video.currentTime) * 1000,
-            instance: true,
-            buttons: [
-                {
-                    label: "Ссылка на релиз",
-                    url: `https://anixart.app/release/${args.release.id}`,
-                },
-                { label: "Ссылка на клиент", url: "https://anidesk.ds1nc.ru/" },
-            ],
-        });
     }
 
     async function renderUpscale() {
         canvas = await waitForElm(".player-canvas");
-
-        // Защита: если видео ещё не загрузило метаданные — не создаём пайплайн
-        if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-            return;
-        }
-
-        // --- FIX: Отслеживание и остановка циклов рендера anime4k-webgpu ---
-        // Библиотека anime4k-webgpu не экспортирует метод destroy(), из-за чего циклы рендера 
-        // накапливаются при каждом изменении окна или пресета, вызывая WebGPU TextureView errors.
-        if (!window._anime4kPatched) {
-            window._anime4kRafIds = new Set();
-            window._anime4kRvfcIds = new Set();
-
-            const origRaf = window.requestAnimationFrame;
-            window.requestAnimationFrame = function(cb) {
-                if (window._captureAnime4k || window._insideAnime4k) {
-                    let id;
-                    const wrapped = function(...args) {
-                        window._insideAnime4k = true;
-                        try { return cb(...args); } finally { 
-                            window._insideAnime4k = false; 
-                            window._anime4kRafIds.delete(id); 
-                        }
-                    };
-                    id = origRaf.call(window, wrapped);
-                    window._anime4kRafIds.add(id);
-                    return id;
-                }
-                return origRaf.call(window, cb);
-            };
-
-            const origRvfc = HTMLVideoElement.prototype.requestVideoFrameCallback;
-            if (origRvfc) {
-                HTMLVideoElement.prototype.requestVideoFrameCallback = function(cb) {
-                    if (window._captureAnime4k || window._insideAnime4k) {
-                        let id;
-                        const wrapped = function(...args) {
-                            window._insideAnime4k = true;
-                            try { return cb(...args); } finally { 
-                                window._insideAnime4k = false; 
-                                window._anime4kRvfcIds.delete(id);
-                            }
-                        };
-                        id = origRvfc.call(this, wrapped);
-                        window._anime4kRvfcIds.add(id);
-                        return id;
-                    }
-                    return origRvfc.call(this, cb);
-                };
-            }
-            window._anime4kPatched = true;
-        }
-
-        // Уничтожаем предыдущий инстанс, жестко убиваем его циклы и сбрасываем контекст канваса
-        if (currentAnime4kInstance || window._anime4kRafIds?.size > 0 || window._anime4kRvfcIds?.size > 0) {
-            for (const id of window._anime4kRafIds) window.cancelAnimationFrame(id);
-            window._anime4kRafIds.clear();
-
-            for (const id of window._anime4kRvfcIds) {
-                if (video && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(id);
-            }
-            window._anime4kRvfcIds.clear();
-
-            if (window._anime4kDevice) {
-                window._anime4kDevice.destroy();
-                window._anime4kDevice = null;
-            }
-            try {
-                canvas.getContext("webgpu")?.unconfigure();
-            } catch (e) {}
-
-            // Заменяем канвас на новый, чтобы старый Device не конфликтовал с новым в getContext()
-            const newCanvas = canvas.cloneNode(true);
-            canvas.parentNode.replaceChild(newCanvas, canvas);
-            canvas = newCanvas;
-
-            currentAnime4kInstance = null;
-        }
-
-        // ——— FIX #2: CSS-хинты композитора ———
-        // Форсируем отдельный GPU-слой для канваса, чтобы Chromium
-        // не троттлил rAF из-за перекрытия GUI-слоем (rAF throttle fix)
-        canvas.style.willChange = 'transform';
-        // transform: translateZ(0) убрано, чтобы не затереть translateX(-50%)
-        canvas.style.backfaceVisibility = 'hidden';
-
-        // ——— FIX #4: размер канваса = размер видеопотока (не DPR-экран)
-        // Компьютерные шейдеры работают в пространстве пикселей видео, не экрана!
-        // Отрисованный результат потом CSS масштабирует до размера окна автоматически
-        const videoWidth = video.videoWidth;
-        const videoHeight = video.videoHeight;
-        const targetWidth = Math.round(canvas.clientWidth * window.devicePixelRatio) || videoWidth;
-        const targetHeight = Math.round(canvas.clientHeight * window.devicePixelRatio) || videoHeight;
-
-        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-            canvas.width = targetWidth;
-            canvas.height = targetHeight;
-        }
-
-        // ——— FIX #1: замораживаем значения реактивных переменных в плоские JS-переменные
-        // Это изолирует цикл рендера от реактивности Svelte —
-        // переменные читаются один раз при создании пайплайна, а не на каждый кадр rAF
-        const _upscaleEnabled = upscaleEnabled;
-        const _mode = upscaleSettings.mode;
-        const _customStages = upscaleSettings.customPreset?.stages ? [...upscaleSettings.customPreset.stages] : [];
-
-        const nativeDimensions = { width: videoWidth, height: videoHeight };
-        const targetDimensions = { width: targetWidth, height: targetHeight };
-
-        window._captureAnime4k = true;
-        const instance = await render({
+        await render({
             video,
             canvas,
             pipelineBuilder: (device, inputTexture) => {
-                window._anime4kDevice = device;
-                if (!_upscaleEnabled) {
-                    return [new Original({ device, inputTexture, nativeDimensions, targetDimensions })];
-                }
+                const nativeDimensions = {
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                };
 
-                // Пользовательский пресет (mode 20) — многоэтапный пайплайн
-                if (_mode === 20) {
-                    if (_customStages.length > 0) {
-                        return _customStages.map(stageMode =>
-                            new upscaleModeMap[stageMode]({ device, inputTexture, nativeDimensions, targetDimensions })
-                        );
-                    } else {
-                        return [new Original({ device, inputTexture, nativeDimensions, targetDimensions })];
-                    }
-                }
+                const targetDimensions = {
+                    width: defaultCanvasSize.width,
+                    height: defaultCanvasSize.height,
+                };
 
-                // Стандартный одиночный шейдер
-                return [new upscaleModeMap[_mode]({ device, inputTexture, nativeDimensions, targetDimensions })];
+                return [
+                    upscaleEnabled
+                        ? new upscaleModeMap[upscaleSettings.mode]({
+                              device,
+                              inputTexture,
+                              nativeDimensions,
+                              targetDimensions,
+                          })
+                        : new Original({
+                              device,
+                              inputTexture,
+                              nativeDimensions,
+                              targetDimensions,
+                          }),
+                ];
             },
         });
-        window._captureAnime4k = false;
-
-        // Сохраняем инстанс (хоть он и не используется для очистки, флаг нужен)
-        currentAnime4kInstance = instance || true;
-
-        // Следим за изменением реального размера канваса через ResizeObserver
-        if (canvasResizeObserver) {
-            canvasResizeObserver.disconnect();
-        }
-        canvasResizeObserver = new ResizeObserver(() => {
-            // Debounce: пересоздаём пайплайн только через 200мс после окончания ресайза
-            if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
-            resizeDebounceTimer = setTimeout(() => {
-                if (video && video.videoWidth > 0) {
-                    renderUpscale();
-                }
-            }, 200);
-        });
-        canvasResizeObserver.observe(canvas);
     }
 
     async function changeQuality(quality) {
@@ -582,16 +440,7 @@
             video.play();
         }
 
-        // Перезапускаем апскейл только когда видео реально загрузится
-        if (avaliableGPU) {
-            hls.once(Hls.Events.MANIFEST_PARSED, async () => {
-                // Ждём появления метаданных видео
-                if (video.videoWidth === 0) {
-                    await new Promise(res => { video.addEventListener('loadedmetadata', res, { once: true }); });
-                }
-                await renderUpscale();
-            });
-        }
+        if (avaliableGPU) await renderUpscale();
 
         args.src = url;
         args.currentQuality = quality;
@@ -601,30 +450,7 @@
         mainDiv = await waitForElm(".anidesk-player");
         video = await waitForElm(".player-video");
 
-        if (args.isOffline || args.src.startsWith('anidesk-offline://')) {
-            video.src = args.src;
-        } else if (Hls.isSupported() && !new URL(args.src).pathname.endsWith(".mp4")) {
-            hls = new Hls();
-
-            hls.on(Hls.Events.BUFFER_APPENDING, (e, data) => {
-                loadedPercent =
-                    (data.frag._streams.video.endPTS / video.duration) * 100;
-            });
-
-            hls.loadSource(args.src);
-            hls.attachMedia(video);
-        } else {
-            video.src = args.src;
-        }
-
-        if (playerSettings.rememberTime) {
-            const timeKey = `${args.release.id}_${args.currentEpisode.position}`;
-            if (savedTimes[timeKey]) {
-                seekTarget = savedTimes[timeKey];
-            } else {
-                seekTarget = 0;
-            }
-        }
+        currentEpisode = args.currentEpisode;
 
         video.volume = playerSettings.saveUserVolume.enabled
             ? (playerSettings.saveUserVolume.lastValue ??
@@ -648,6 +474,7 @@
         video.onloadedmetadata = () => {
             loading = true;
             durationTime = utils.returnFormatedTime(video.duration);
+            videoAspect = video.videoWidth / video.videoHeight;
             if (seekTarget > 0) {
                 video.currentTime = seekTarget;
                 seekTarget = 0;
@@ -661,16 +488,6 @@
         video.onplaying = () => {
             loading = false;
         };
-
-        // Запускаем апскейл только после того, как видео сообщит своё разрешение
-        // Это устраняет Race Condition: video.videoWidth > 0 гарантировано
-        if (avaliableGPU) {
-            video.addEventListener('loadedmetadata', async () => {
-                await renderUpscale();
-            }, { once: true });
-        }
-
-        await video.play();
 
         window.onwheel = (e) => {
             switch (true) {
@@ -780,8 +597,6 @@
             pressedKeys.delete(e.code);
         };
 
-        // Очищаем массив нажатых клавиш при потере фокуса окна, чтобы небыло проблем
-        // когда клавиша осталась в массиве из-за чего хоткеи перестают работать
         window.onblur = () => {
             pressedKeys.clear();
         }
@@ -877,7 +692,6 @@
             }
         };
 
-        // Обработчик ошибки загрузки видео
         video.onerror = () => {
             loading = false;
             console.error('Video load error:', video.error?.message);
@@ -888,23 +702,23 @@
             progressPercent = (video.currentTime / video.duration) * 100;
         };
 
-        // Guard: для оффлайн-режима source — заглушка, пропускаем
         let source;
         if (!args.isOffline) {
-            source =
-                typeof args.currentEpisode.source == "number"
-                    ? args.episodes.find(
-                          (x) => args.currentEpisode.source == x.source["@id"],
-                      )?.source
-                    : args.currentEpisode.source;
+            source = args.currentEpisode.source;
+            if (typeof source === "number") {
+                const found = args.episodes.find(
+                    (x) => x.source && (x.source["@id"] == source || x.source.id == source)
+                );
+                source = found ? found.source : null;
+            }
         }
 
-        if (!args.isOffline) {
+        if (!args.isOffline && source) {
             analytics.trackEvent("play_anime", {
-                source: source.name,
+                source: source.name || "Unknown",
                 name: args.currentEpisode.name,
                 releaseTitle: args.release.title_ru,
-                dubber: source.type.name,
+                dubber: source.type?.name || "Unknown",
             });
         }
 
@@ -929,11 +743,64 @@
                 ],
             });
         }
+
+        // If src is already provided, load it, otherwise fetch dynamically
+        if (args.src) {
+            if (args.isOffline || args.src.startsWith('anidesk-offline://')) {
+                video.src = args.src;
+            } else if (Hls.isSupported() && !new URL(args.src).pathname.endsWith(".mp4")) {
+                hls = new Hls();
+                hls.on(Hls.Events.BUFFER_APPENDING, (e, data) => {
+                    loadedPercent = (data.frag._streams.video.endPTS / video.duration) * 100;
+                });
+                hls.loadSource(args.src);
+                hls.attachMedia(video);
+            } else {
+                video.src = args.src;
+            }
+
+            if (playerSettings.rememberTime) {
+                const timeKey = `${args.release.id}_${args.currentEpisode.position}`;
+                if (savedTimes[timeKey]) {
+                    seekTarget = savedTimes[timeKey];
+                } else {
+                    seekTarget = 0;
+                }
+            }
+
+            if (avaliableGPU) await renderUpscale();
+            try {
+                await video.play();
+            } catch (e) {
+                console.error("Failed to play video automatically", e);
+            }
+
+            if (!playingSettings.disableHistory && !args.isOffline) {
+                anixApi.release.markEpisodeAsWatched(
+                    args.release.id,
+                    args.episodes[0].source.id,
+                    currentEpisode.position,
+                );
+                anixApi.release.addToHistory(
+                    args.release.id,
+                    args.episodes[0].source.id,
+                    currentEpisode.position,
+                );
+            }
+        } else {
+            // Fetch dynamically on first load
+            try {
+                await playVideo(currentEpisode);
+            } catch (e) {
+                console.error("Failed to load video on init", e);
+                loading = false;
+            }
+        }
     }
 
 </script>
 
-<div class="anidesk-player full">
+<div class="anidesk-player full" style="--video-aspect: {videoAspect};">
     <PlayerGui
         {playVideo}
         {args}
@@ -967,9 +834,8 @@
         ></canvas>
     {/if}
     <video
-        class="player-video"
+        class="player-video {aspectRatio}"
         crossorigin="anonymous"
-        class:full={!avaliableGPU}
         class:hide={avaliableGPU}
     ></video>
 </div>
@@ -1011,7 +877,8 @@
         cursor: none;
     }
 
-    .player-canvas {
+    .player-canvas,
+    .player-video {
         height: 100%;
         overflow: hidden;
         position: absolute;
@@ -1029,6 +896,10 @@
 
     .aspect-fit {
         width: 100%;
+    }
+
+    .aspect-original {
+        aspect-ratio: var(--video-aspect);
     }
 
     .anidesk-player {

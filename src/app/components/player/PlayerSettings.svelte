@@ -48,10 +48,10 @@
                     <span class="btn-title">Качество:</span>
                     <span>{currentSettings.currentQuality}p →</span>
                 </button>
-                <div class="player-settings-element" class:disabled={!avaliableGPU}>
+                <div class="player-settings-element" class:disabled={!upscaleSettings.enabled || !avaliableGPU}>
                     <span class="btn-title">Улучшение качества:</span>
                     <SliderButton
-                        disabled={!avaliableGPU}
+                        disabled={!upscaleSettings.enabled || !avaliableGPU}
                         value={!avaliableGPU ? false : currentSettings.upscaleEnabled}
                         onClickCallback={(value) => changeUpscale(value)}
                     />
@@ -77,7 +77,7 @@
                     <span
                         >{utils.playerSpeedValues.find(
                             (x) => x.value == video.playbackRate,
-                        ).label} →</span
+                        )?.label ?? (video.playbackRate + 'x')} →</span
                     >
                 </button>
             </div>

@@ -494,4 +494,4 @@ function initDownloader(mainWindow) {
     });
 }
 
-module.exports = { initDownloader };
+module.exports = { initDownloader, getLibrary, saveLibrary };

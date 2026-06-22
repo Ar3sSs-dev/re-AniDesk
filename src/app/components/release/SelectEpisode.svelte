@@ -1,6 +1,6 @@
 <script>
     import Preloader from "../gui/Preloader.svelte";
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, onMount } from "svelte";
     import { AniLibriaParser, KodikParser } from "anixartjs";
     import { localStorageWritable } from "@babichjacob/svelte-localstorage";
     import DropdownButton from "../buttons/DropdownButton.svelte";
@@ -25,23 +25,19 @@
     let dubberList = [];
     let backgroundModal = document.querySelector(".modal-background");
 
+    let offlineLibrary = [];
+
+    onMount(async () => {
+        try {
+            offlineLibrary = await offlineApi.getLibrary();
+        } catch (e) {
+            console.error("Failed to load offline library", e);
+        }
+    });
+
     let sourceList = {
         sources: [],
     };
-
-    anixApi.release.getDubbers(args.id).then((v) => {
-        if (!v.types?.length) return; // guard: no dubbers
-        selectDubber(v.types[0].id);
-        dubberList = v.types.map((x) => ({
-            label: x.name,
-            value: x.id,
-            icon:
-                x.icon == "" || !x.icon
-                    ? "./assets/icons/defaultDubber.svg"
-                    : x.icon,
-            description: `${x.view_count} просмотров | ${x.episodes_count} эпизодов`,
-        }));
-    });
 
     const playingSettingsRaw = localStorageWritable(
         "playingSettings",
@@ -65,6 +61,25 @@
         (x) => x.value === playingSettings?.defaultSource,
     ).label;
 
+    anixApi.release.getDubbers(args.id).then((v) => {
+        if (!v.types?.length) return; // guard: no dubbers
+        dubberList = v.types.map((x) => ({
+            label: x.name,
+            value: x.id,
+            icon:
+                x.icon == "" || !x.icon
+                    ? "./assets/icons/defaultDubber.svg"
+                    : x.icon,
+            description: `${x.view_count} просмотров | ${x.episodes_count} эпизодов`,
+        }));
+        
+        let matchedDubber = dubberList.find(
+            (x) => x.label === playingSettings?.lastDubberName
+        );
+        const defaultDubberId = matchedDubber ? matchedDubber.value : v.types[0].id;
+        selectDubber(defaultDubberId);
+    });
+
     async function selectDubber(id) {
         currentDubberId = id;
 
@@ -82,8 +97,16 @@
             return sourceList;
         }
 
+        const dubName = dubberList.find((x) => x.value === id)?.label;
+        if (dubName) {
+            playingSettings.lastDubberName = dubName;
+            playingSettingsRaw.set({ ...playingSettings });
+        }
+
         let matchedSource = sourceList.sources.find(
-            (x) => x.name == favoriteSourceName,
+            (x) => x.name === playingSettings?.lastSourceName
+        ) || sourceList.sources.find(
+            (x) => x.name === favoriteSourceName
         );
 
         currentSourceId = !matchedSource
@@ -101,7 +124,12 @@
 
     function selectSource(src) {
         currentSourceId = src;
-        currentSourceName = sourceList.sources.find((x) => x.id == src).name;
+        const srcObj = sourceList.sources.find((x) => x.id == src);
+        if (srcObj) {
+            currentSourceName = srcObj.name;
+            playingSettings.lastSourceName = currentSourceName;
+            playingSettingsRaw.set({ ...playingSettings });
+        }
     }
 
     function setTitle(title) {
@@ -257,15 +285,12 @@
                 </div>
             {:then i}
                 {#each i.episodes as d}
-                    {@render baseCard(d, async () => {
-                        let avaliableQuality, link;
-                        
-                        // Check offline first
+                    {@render baseCard(d, () => {
+                        // Check offline first (local check is very fast)
                         let isOffline = false;
                         let offlineUrl = "";
                         try {
-                            const lib = await offlineApi.getLibrary();
-                            const anime = lib.find(a => a.id === args.id);
+                            const anime = offlineLibrary.find(a => a.id === args.id);
                             if (anime) {
                                 const ep = anime.episodes.find(e => e.id === d.position);
                                 if (ep) {
@@ -277,50 +302,23 @@
                         } catch(e) {}
 
                         if (isOffline) {
-                            avaliableQuality = { "720": { src: offlineUrl } };
+                            updateViewportComponent(11, {
+                                src: offlineUrl,
+                                currentQuality: 720,
+                                avaliableQuality: { "720": { src: offlineUrl } },
+                                release: args,
+                                episodes: i.episodes,
+                                currentEpisode: d,
+                                isOffline: true
+                            });
                         } else {
-                            switch (currentSourceName) {
-                                case "Kodik":
-                                    let aQ = {};
-                                    const kLinks = await KodikParser.getDirectLinks(d.url);
-                                    for (const [key, value] of Object.entries(kLinks)) { aQ[key] = { src: value[0].src }; }
-                                    avaliableQuality = aQ; break;
-                                case "Liberty":
-                                case "Libria":
-                                    avaliableQuality = await AniLibriaParser.getDirectLinks(d.url); break;
-                                case "Sibnet":
-                                    await utils.fallback(async () => {
-                                        const link = await Sibnet.Parse(d.url);
-                                        if (!link) return false;
-                                        avaliableQuality = { "720": { src: link } };
-                                        return true;
-                                    }, 3); break;
-                            }
+                            // Transition IMMEDIATELY! Player.svelte will load streams asynchronously.
+                            updateViewportComponent(11, {
+                                release: args,
+                                episodes: i.episodes,
+                                currentEpisode: d,
+                            });
                         }
-
-                        if (!playingSettings.disableHistory) {
-                            anixApi.release.markEpisodeAsWatched(
-                                args.id,
-                                currentSourceId ?? i.episodes[0].source.id,
-                                d.position,
-                            );
-                            anixApi.release.addToHistory(
-                                args.id,
-                                currentSourceId ?? i.episodes[0].source.id,
-                                d.position,
-                            );
-                        }
-
-                        const url = avaliableQuality[String(playingSettings.defaultQuality)]?.src ?? avaliableQuality["720"]?.src;
-
-                        updateViewportComponent(11, {
-                            src: `${URL.canParse(url) ? url : `https:${url}`}`,
-                            currentQuality: 720,
-                            avaliableQuality,
-                            release: args,
-                            episodes: i.episodes,
-                            currentEpisode: d,
-                        });
                     }, async () => {
                         let avaliableQuality, link;
                         switch (currentSourceName) {
