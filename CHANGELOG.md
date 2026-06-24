@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-24 13:02]
+- **docs:** describe interactive ratings feature in README.md and release notes -> [README.md](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/README.md), [release_notes.md](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/release_notes.md)
+
 ## [2026-06-24 12:48]
 - **chore:** update repository links after rename to re-AniDesk -> [README.md](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/README.md), [Settings.svelte](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/src/app/pages/Settings.svelte)
 
