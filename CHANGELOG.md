@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-27 21:13]
+- **docs:** simplify feature descriptions in README.md, remove dev jargon and dead features -> [README.md](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/README.md)
+
 ## [2026-06-27 21:07]
 - **docs:** rewrite release notes to be more user-friendly and engaging -> [release_notes.md](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/release_notes.md)
 
