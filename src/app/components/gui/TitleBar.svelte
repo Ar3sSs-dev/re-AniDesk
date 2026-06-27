@@ -11,7 +11,7 @@
                 return h;
             });
 
-            window.updateViewportComponent(prev.page, prev.args, true);
+            window.updateViewportComponent(prev.page, prev.args, true, prev.scrollTop);
         }
     }
 </script>

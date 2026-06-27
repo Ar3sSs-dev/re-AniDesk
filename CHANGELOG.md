@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-27 21:28]
+- **feat:** persist viewport scroll position when navigating back -> [LeftMenu.svelte](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/src/app/components/gui/LeftMenu.svelte), [TitleBar.svelte](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/src/app/components/gui/TitleBar.svelte)
+
 ## [2026-06-27 21:13]
 - **docs:** simplify feature descriptions in README.md, remove dev jargon and dead features -> [README.md](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/README.md)
 

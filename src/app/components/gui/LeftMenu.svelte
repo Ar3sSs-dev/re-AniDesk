@@ -62,7 +62,17 @@
     const user_token = localStorageWritable("user_token", null);
     user_token.subscribe((value) => (utoken = JSON.parse(value)));
 
-    window.updateViewportComponent = (page, args, history = false) => {
+    let currentScrollInterval = null;
+
+    window.updateViewportComponent = (page, args, history = false, targetScroll = 0) => {
+        if (currentScrollInterval) {
+            clearInterval(currentScrollInterval);
+            currentScrollInterval = null;
+        }
+
+        const viewport = document.getElementById("viewport");
+        const currentScrollTop = viewport ? viewport.scrollTop : 0;
+
         setViewportScrollEvent(null);
         viewInfoOld.viewportComponent = viewportComponent;
         viewInfoOld.args = argsComponent;
@@ -89,14 +99,35 @@
             });
         }
 
-	if (!history && viewInfoOld.viewportComponent !== Player) {
-		pageHistory.update(h => {
-			if (h[0]?.page !== viewInfoOld.viewportComponent || JSON.stringify(h[0].args) !== JSON.stringify(viewInfoOld.args)) {
-				h.unshift({ page: viewInfoOld.viewportComponent, args: viewInfoOld.args });
-			}
-			return h;
-		});
-	}
+        if (!history && viewInfoOld.viewportComponent !== Player && viewInfoOld.viewportComponent !== null) {
+            pageHistory.update(h => {
+                if (h[0]?.page !== viewInfoOld.viewportComponent || JSON.stringify(h[0].args) !== JSON.stringify(viewInfoOld.args)) {
+                    h.unshift({ page: viewInfoOld.viewportComponent, args: viewInfoOld.args, scrollTop: currentScrollTop });
+                }
+                return h;
+            });
+        }
+
+        if (history && targetScroll) {
+            let attempts = 0;
+            const maxAttempts = 100;
+            currentScrollInterval = setInterval(() => {
+                const vp = document.getElementById("viewport");
+                if (vp) {
+                    vp.scrollTop = targetScroll;
+                    if (Math.abs(vp.scrollTop - targetScroll) < 5 || attempts >= maxAttempts) {
+                        clearInterval(currentScrollInterval);
+                        currentScrollInterval = null;
+                    }
+                }
+                attempts++;
+            }, 50);
+        } else {
+            setTimeout(() => {
+                const vp = document.getElementById("viewport");
+                if (vp) vp.scrollTop = 0;
+            }, 50);
+        }
     };
 
     let myProfile = anixApi.profile.info(utoken?.id);
