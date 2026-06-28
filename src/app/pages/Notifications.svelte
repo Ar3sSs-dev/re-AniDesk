@@ -31,6 +31,8 @@
                 return notification.release.image;
             case "friend":
                 return notification.by_profile.avatar;
+            case "episode":
+                return notification.release.image;
         }
     }
 
@@ -42,6 +44,8 @@
                 return `Появился новый связанный релиз <b>"${notification.release.title_ru}"</b>`;
             case "friend":
                 return `Новый запрос в друзья от <b>"${notification.by_profile.login}"</b>`;
+            case "episode":
+                return `Вышла новая <b>${notification.episode.position} серия</b> для релиза <b>"${notification.release.title_ru}"</b>`;
         }
     }
 
@@ -69,6 +73,9 @@
                 break;
             case "friend":
                 updateViewportComponent(9, notification.by_profile.id);
+                break;
+            case "episode":
+                updateViewportComponent(8, { id: notification.release.id });
                 break;
         }
 

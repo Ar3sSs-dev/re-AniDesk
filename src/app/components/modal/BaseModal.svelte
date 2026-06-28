@@ -32,7 +32,7 @@
 >
     <div tabindex="-1" class="modal" style="--width: {modalSize.width}; --height: {modalSize.height};" onclick={(event) => event.stopPropagation()}>
         {#if showed}
-            <svelte:component this={modalComponent} args={modalArgs} on:setTitle={(e) => modalTitle = e.detail} showed={showed} on:updateComponent={(e) => updateComponent(e.detail)} on:closeModal={() => closeModal()}></svelte:component>
+            <svelte:component this={modalComponent} args={modalArgs} on:setTitle={(e) => modalTitle = e.detail} showed={showed} on:updateComponent={(e) => updateComponent(e.detail)} on:closeModal={() => closeModal()} on:apply={(e) => dispatch("apply", e.detail)}></svelte:component>
         {/if}
     </div>
 </div>

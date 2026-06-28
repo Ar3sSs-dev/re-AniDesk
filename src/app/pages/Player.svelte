@@ -78,7 +78,7 @@
         startTimestamp,
         videoAspect = 16 / 9;
 
-    let progressPercent, loadedPercent;
+    let progressPercent = 0, loadedPercent = 0;
     let seekTarget = 0;
 
     let isHidden, isPaused, isTimePosClick, isFullscreen;
@@ -279,28 +279,31 @@
                 throw new Error("No video quality links resolved");
             }
 
-            const url =
-                avaliableQuality[String(playingSettings.defaultQuality)]?.src ??
-                avaliableQuality["720"]?.src;
+            const qualityKeys = Object.keys(avaliableQuality);
+            let selectedQuality = String(playingSettings.defaultQuality);
+            if (!avaliableQuality[selectedQuality]?.src) {
+                selectedQuality = avaliableQuality["720"]?.src ? "720" : (qualityKeys.length > 0 ? qualityKeys[qualityKeys.length - 1] : null);
+            }
+
+            const url = selectedQuality ? avaliableQuality[selectedQuality]?.src : null;
 
             if (!url) {
                 throw new Error("No valid quality URL found");
             }
 
             args.avaliableQuality = avaliableQuality;
+            args.currentQuality = selectedQuality;
 
             link = `${URL.canParse(url) ? url : `https:${url}`}`;
 
+            loadedPercent = 0;
             if (Hls.isSupported() && !new URL(link).pathname.endsWith(".mp4")) {
-                hls.detachMedia();
-                hls.destroy();
+                if (hls) {
+                    hls.detachMedia();
+                    hls.destroy();
+                }
 
                 hls = new Hls();
-
-                hls.on(Hls.Events.BUFFER_APPENDING, (e, data) => {
-                    loadedPercent =
-                        (data.frag._streams.video.endPTS / video.duration) * 100;
-                });
 
                 hls.loadSource(link);
                 hls.attachMedia(video);
@@ -320,6 +323,8 @@
             }
 
             await video.play();
+
+            if (avaliableGPU) await renderUpscale();
 
             if (!playingSettings.disableHistory && !args.isOffline) {
                 anixApi.release.markEpisodeAsWatched(
@@ -412,19 +417,17 @@
             ? qualitySrc
             : `https:${qualitySrc}`;
 
+        loadedPercent = 0;
         if (Hls.isSupported()) {
             const currentTime = video.currentTime;
             const isPausedNow = video.paused;
 
-            hls.detachMedia();
-            hls.destroy();
+            if (hls) {
+                hls.detachMedia();
+                hls.destroy();
+            }
 
             hls = new Hls();
-
-            hls.on(Hls.Events.BUFFER_APPENDING, (e, data) => {
-                loadedPercent =
-                    (data.frag._streams.video.endPTS / video.duration) * 100;
-            });
 
             hls.loadSource(url);
             hls.attachMedia(video);
@@ -702,6 +705,20 @@
             progressPercent = (video.currentTime / video.duration) * 100;
         };
 
+        video.onprogress = () => {
+            if (video.duration && video.buffered.length > 0) {
+                let bufferedEnd = 0;
+                const ct = video.currentTime;
+                for (let i = 0; i < video.buffered.length; i++) {
+                    if (video.buffered.start(i) <= ct && ct <= video.buffered.end(i)) {
+                        bufferedEnd = video.buffered.end(i);
+                        break;
+                    }
+                }
+                loadedPercent = (bufferedEnd / video.duration) * 100;
+            }
+        };
+
         let source;
         if (!args.isOffline) {
             source = args.currentEpisode.source;
@@ -750,9 +767,6 @@
                 video.src = args.src;
             } else if (Hls.isSupported() && !new URL(args.src).pathname.endsWith(".mp4")) {
                 hls = new Hls();
-                hls.on(Hls.Events.BUFFER_APPENDING, (e, data) => {
-                    loadedPercent = (data.frag._streams.video.endPTS / video.duration) * 100;
-                });
                 hls.loadSource(args.src);
                 hls.attachMedia(video);
             } else {

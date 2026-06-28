@@ -10,14 +10,59 @@
     export let showed;
     dispatch("setTitle", "Оценка релизов");
 
+    import { optimisticVotes } from "../../stores.js";
+    import { get } from "svelte/store";
+
     let page = 0;
     let allData = [];
-    let firstData = anixApi.profile.getVotedReleases(args.id, page);
-    let updateInfo = false
+    let firstData = getFirstData();
+    let updateInfo = false;
+
+    function applyOptimisticUpdates(contentArray) {
+        if (!contentArray) return [];
+        const overrides = get(optimisticVotes);
+        let merged = [...contentArray];
+        
+        for (const [idStr, update] of Object.entries(overrides)) {
+            const id = parseInt(idStr);
+            const existingIndex = merged.findIndex(v => v.id === id);
+            
+            if (update.vote === 0) {
+                if (existingIndex !== -1) merged.splice(existingIndex, 1);
+            } else {
+                if (existingIndex !== -1) {
+                    merged[existingIndex].my_vote = update.vote;
+                    merged[existingIndex] = { ...merged[existingIndex] };
+                } else if (page === 0 && update.releaseData) {
+                    // Only unshift to the first page if it's new
+                    merged.unshift({
+                        id: id,
+                        title: update.releaseData.title_ru,
+                        title_ru: update.releaseData.title_ru,
+                        my_vote: update.vote,
+                        image: update.releaseData.image,
+                        voted_at: update.timestamp
+                    });
+                }
+            }
+        }
+        
+        if (page === 0) {
+            merged.sort((a, b) => b.voted_at - a.voted_at);
+        }
+        return merged;
+    }
+
+    async function getFirstData() {
+        let data = await anixApi.profile.getVotedReleases(args.id, 0);
+        data.content = applyOptimisticUpdates(data.content);
+        return data;
+    }
 
     async function getRelatedPage() {
         const data = await anixApi.profile.getVotedReleases(args.id, page);
-        allData = allData.concat(data.content);
+        let updatedContent = applyOptimisticUpdates(data.content);
+        allData = allData.concat(updatedContent);
         updateInfo = false;
     }
 

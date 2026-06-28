@@ -10,6 +10,9 @@
     import AuthPlaceholder from "./AuthPlaceholder.svelte";
     import MetaInfo from "../components/gui/MetaInfo.svelte";
     import BaseModal from "../components/modal/BaseModal.svelte";
+    import { pageCache } from "../components/stores/pageCache.js";
+    import { get } from "svelte/store";
+    import { onDestroy } from "svelte";
 
     export let args;
     let page = 0;
@@ -21,7 +24,51 @@
     let isFavorite = false;
     let favoriteCount = 0;
 
-    let info = getCollectionInfo();
+    let infoResolved = null;
+    let info;
+
+    function saveCache() {
+        if (infoResolved) {
+            pageCache.update(cache => {
+                const key = `Collection_${args.id}`;
+                cache[key] = {
+                    page,
+                    allData,
+                    infoResolved
+                };
+                return cache;
+            });
+        }
+    }
+
+    function loadFromCache() {
+        const key = `Collection_${args.id}`;
+        const cached = get(pageCache)[key];
+        if (cached) {
+            page = cached.page;
+            allData = cached.allData;
+            info = Promise.resolve(cached.infoResolved);
+            infoResolved = cached.infoResolved;
+            return true;
+        }
+        return false;
+    }
+
+    if (!loadFromCache()) {
+        info = getCollectionInfo();
+    }
+
+    $: if (info && typeof info.then === 'function') {
+        info.then(data => {
+            infoResolved = data;
+        });
+    } else if (info) {
+        infoResolved = info;
+    }
+
+    onDestroy(() => {
+        saveCache();
+    });
 
     async function getCollectionInfo() {
         let base = await anixApi.collection.info(args.id);

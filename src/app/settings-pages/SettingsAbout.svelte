@@ -1,4 +1,4 @@
-﻿<script>
+<script>
     import githubLogo from "../icons/github.svg";
     import Icon from "../components/elements/Icon.svelte";
 </script>
@@ -11,7 +11,7 @@
             alt="icon"
         />
         <div class="app-info flex-column">
-            <span class="app-title">AniDesk</span>
+            <span class="app-title">Re:AniDesk</span>
             <p class="app-description">
                 Быстрый и удобный неофициальный десктоп-клиент для <strong>Anixart</strong>. 
                 Проект с открытым исходным кодом, построенный на современном стеке веб-технологий: 

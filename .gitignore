@@ -8,3 +8,7 @@ bundle.js
 bundle.js.map
 mpv/
 package-lock.json
+.gemini/
+.vs/
+*.log
+app.asar.bak*

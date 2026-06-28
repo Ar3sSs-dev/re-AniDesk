@@ -18,9 +18,49 @@
     let showFriendsModal, showBookmarksModal, showVotesReleasesModal = false;
     let modalSubTitle = null;
 
+    import { optimisticVotes } from "../stores.js";
+    import { get } from "svelte/store";
+
     async function getProfile() {
+        const profileInfo = await anixApi.profile.info(args);
+        
+        // Apply optimistic updates
+        if (profileInfo && profileInfo.profile && profileInfo.profile.votes) {
+            const overrides = get(optimisticVotes);
+            let mergedVotes = [...profileInfo.profile.votes];
+            
+            for (const [idStr, update] of Object.entries(overrides)) {
+                const id = parseInt(idStr);
+                const existingIndex = mergedVotes.findIndex(v => v.id === id);
+                
+                if (update.vote === 0) {
+                    if (existingIndex !== -1) mergedVotes.splice(existingIndex, 1);
+                } else {
+                    if (existingIndex !== -1) {
+                        mergedVotes[existingIndex].my_vote = update.vote;
+                        // To force reactivity, we update the reference
+                        mergedVotes[existingIndex] = { ...mergedVotes[existingIndex] };
+                    } else if (update.releaseData) {
+                        // It's a new vote for a release that wasn't in the cached list
+                        mergedVotes.unshift({
+                            id: id,
+                            title: update.releaseData.title_ru,
+                            title_ru: update.releaseData.title_ru,
+                            my_vote: update.vote,
+                            image: update.releaseData.image,
+                            voted_at: update.timestamp
+                        });
+                    }
+                }
+            }
+            
+            // Re-sort by voted_at descending
+            mergedVotes.sort((a, b) => b.voted_at - a.voted_at);
+            profileInfo.profile.votes = mergedVotes;
+        }
+
         return {
-            profileInfo: await anixApi.profile.info(args),
+            profileInfo: profileInfo,
             blogInfo: await anixApi.channel.getBlog(args),
             friendsInfo: await anixApi.profile.getFriends({id: args, page: 0}).catch(() => null),
         }

@@ -8,6 +8,9 @@
     import BaseModal from "../components/modal/BaseModal.svelte";
     import WatchingModal from "../components/discover/WatchingModal.svelte";
     import MetaInfo from "../components/gui/MetaInfo.svelte";
+    import { pageCache } from "../components/stores/pageCache.js";
+    import { get } from "svelte/store";
+    import { onDestroy } from "svelte";
 
     async function getDiscover() {
         return {
@@ -21,6 +24,38 @@
             }),
         };
     }
+
+    let discoverData = null;
+    let firstData;
+
+    function saveCache() {
+        if (discoverData) {
+            pageCache.update(cache => {
+                cache["Discover"] = discoverData;
+                return cache;
+            });
+        }
+    }
+
+    const cached = get(pageCache)["Discover"];
+    if (cached) {
+        firstData = Promise.resolve(cached);
+        discoverData = cached;
+    } else {
+        firstData = getDiscover();
+    }
+
+    $: if (firstData && typeof firstData.then === 'function') {
+        firstData.then(data => {
+            discoverData = data;
+        });
+    } else if (firstData) {
+        discoverData = firstData;
+    }
+
+    onDestroy(() => {
+        saveCache();
+    });
 
     function scrollToIndex(index) {
         const container = document.querySelector(".interesting");
@@ -69,7 +104,7 @@
 
 <MetaInfo subTitle="Обзор" />
 
-{#await getDiscover()}
+{#await firstData}
     <Preloader />
 {:then d}
     <div class="interesting-slider-wrapper">

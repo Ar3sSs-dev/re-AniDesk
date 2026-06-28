@@ -6,6 +6,8 @@
     import MetaInfo from "../components/gui/MetaInfo.svelte";
     import utils from "../utils";
     import { onDestroy } from "svelte";
+    import { pageCache } from "../components/stores/pageCache.js";
+    import { get } from "svelte/store";
 
     export let args;
 
@@ -14,6 +16,29 @@
 
     let timeout, relatedModalSubTitle, searchBoxElement;
     let relatedModalShowed = false;
+    let firstDataResolved = null;
+
+    function saveCache() {
+        if (firstDataResolved && args.query) {
+            pageCache.update(cache => {
+                const key = `Search_${args.query}`;
+                cache[key] = firstDataResolved;
+                return cache;
+            });
+        }
+    }
+
+    function loadFromCache() {
+        if (!args.query) return false;
+        const key = `Search_${args.query}`;
+        const cached = get(pageCache)[key];
+        if (cached) {
+            firstData = Promise.resolve(cached);
+            firstDataResolved = cached;
+            return true;
+        }
+        return false;
+    }
 
     function search() {
         firstData = anixApi.search.releases({
@@ -34,10 +59,21 @@
     }
 
     if (args.query) {
-        search();
+        if (!loadFromCache()) {
+            search();
+        }
+    }
+
+    $: if (firstData && typeof firstData.then === 'function') {
+        firstData.then(data => {
+            firstDataResolved = data;
+        });
+    } else if (firstData && !Array.isArray(firstData)) {
+        firstDataResolved = firstData;
     }
 
     onDestroy(() => {
+        saveCache();
         if (timeout) clearTimeout(timeout);
     });
 </script>

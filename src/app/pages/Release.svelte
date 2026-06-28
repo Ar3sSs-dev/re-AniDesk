@@ -22,13 +22,13 @@
     import BookmarkStatsInfo from "../components/profile/BookmarkStatsInfo.svelte";
     import AuthPlaceholder from "./AuthPlaceholder.svelte";
     import NotAvaliable from "./NotAvaliable.svelte";
+    import UserRating from "../components/release/UserRating.svelte";
     import { onDestroy } from "svelte";
 
     export let args;
     const release = anixApi.release.info(args.id, true);
 
     release.then((data) => {
-        if (!data || !data.release) return;
         discordRPC.setActivity({
             type: 3,
             state: "На странице релиза",
@@ -44,7 +44,7 @@
                 { label: "Ссылка на клиент", url: "https://anidesk.ds1nc.ru/" },
             ],
         });
-    }).catch(() => {});
+    });
 
     let showSelectEpisodeModal,
         showCommentsModal,
@@ -172,6 +172,8 @@
                         size={{ width: 22, height: 28 }}
                     />
                 </LeftReleaseBaseButton>
+                
+                <UserRating release={r.release} onshowAuthModal={() => showAuthModal = true} on:showAuthModal={() => showAuthModal = true} />
 
                 {#if r.release.status?.id !== 3}
                     <div class="rating-container flex-row">

@@ -9,6 +9,18 @@ const rpc = require("@xhayper/discord-rpc");
 const { initialize, trackEvent } = require("./aptabase/main");
 const { SibnetParser } = require('anixartjs');
 const { initDownloader } = require('./downloader');
+
+const logPath = path.join(app.getPath("userData"), "app.log");
+fs.writeFileSync(logPath, `=== App Log Started ${new Date().toISOString()} ===\n`);
+
+function logToFile(...args) {
+  const msg = args.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join(' ');
+  fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
+}
+
+console.log = logToFile;
+console.error = logToFile;
+console.warn = logToFile;
 /**
  * @type {BrowserWindow}
  */
@@ -43,7 +55,7 @@ async function cleanupCache() {
     const now = Date.now();
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
-    for (const file of files) {
+    await Promise.all(files.map(async (file) => {
       try {
         const filePath = path.join(ImageCachePath, file);
         const stats = await fs.promises.stat(filePath);
@@ -53,7 +65,7 @@ async function cleanupCache() {
       } catch (fileErr) {
         console.error(`Cache cleanup: skip ${file}:`, fileErr.message);
       }
-    }
+    }));
   } catch (e) {
     console.error("Cache cleanup error:", e);
   }
@@ -70,14 +82,7 @@ discordRpcClient.on('ready', () => {
   console.log("[RPC] Hooked!");
 });
 
-let SettingsFirst = DefaultSettings;
-try {
-  if (fs.existsSync(SettingsPath)) {
-    SettingsFirst = JSON.parse(fs.readFileSync(SettingsPath));
-  }
-} catch (e) {
-  console.error("Failed to parse settings.json, using defaults:", e.message);
-}
+const SettingsFirst = fs.existsSync(SettingsPath) ? JSON.parse(fs.readFileSync(SettingsPath)) : DefaultSettings;
 
 if (SettingsFirst.AutoUpdate) {
   autoUpdater.on("checking-for-update", () => {
@@ -101,7 +106,7 @@ if (SettingsFirst.AutoUpdate) {
     const dialogOpts = {
       type: 'info',
       buttons: ['Перезапустить', 'Позже'],
-      title: 'Обновление AniDesk',
+      title: 'Обновление Re:AniDesk',
       message: process.platform === 'win32' ? releaseNotes : releaseName,
       detail:
         'Новая версия была скачана, перезапустите приложение для установки.'
@@ -139,20 +144,19 @@ if (SettingsFirst.EnableAnalytics) {
 }
 
 function isDev() {
-  return !app.isPackaged;
+  return false;
 }
 
 function UpsertKeyValue(obj, keyToChange, value) {
   const keyToChangeLower = keyToChange.toLowerCase();
   for (const key of Object.keys(obj)) {
     if (key.toLowerCase() === keyToChangeLower) {
-      if (value === null) delete obj[key];
-      else obj[key] = value;
+      obj[key] = value;
       return;
     }
   }
 
-  if (value !== null) obj[keyToChange] = value;
+  obj[keyToChange] = value;
 }
 
 function createWindow() {
@@ -167,10 +171,25 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       sandbox: true,
-      devTools: SettingsFirst.EnableDevTools
+      devTools: true
     },
     icon: "./public/assets/icons/anidesk-icon.png",
     show: false,
+  });
+
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    logToFile(`[RENDERER] [Level:${level}] ${message} (Source: ${sourceId}:${line})`);
+  });
+
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i') {
+      mainWindow.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+    if (input.key === 'F12') {
+      mainWindow.webContents.toggleDevTools();
+      event.preventDefault();
+    }
   });
 
   if (isDev()) {
@@ -276,7 +295,7 @@ app.on('ready', () => {
         // \u043a\u0430\u0436\u0434\u044b\u0439 \u043f\u043e\u043b\u0443\u0447\u0430\u0435\u0442 \u0441\u0432\u043e\u0439 \u043d\u043e\u0432\u044b\u0439 Response \u0438\u0437 \u043e\u0434\u043d\u043e\u0433\u043e \u0438 \u0442\u043e\u0433\u043e \u0436\u0435 Buffer \u2014
         // \u0438\u043d\u0430\u0447\u0435 \u0432\u0442\u043e\u0440\u043e\u0439 \u0437\u0430\u043f\u0440\u043e\u0441 \u043f\u043e\u043b\u0443\u0447\u0438\u0442 TypeError: body stream already read
         if (!cacheInFlight.has(filePath)) {
-          const fetchUrl = originalUrl.includes('anixmirai.com') ? `https://images.weserv.nl/?url=${originalUrl}&w=300&output=webp` : originalUrl;
+          const fetchUrl = (originalUrl.includes('anixmirai.com') || originalUrl.includes('anixart')) ? `https://images.weserv.nl/?url=${encodeURIComponent(originalUrl)}&w=300&output=webp` : originalUrl;
           const bufferPromise = (async () => {
             const response = await net.fetch(fetchUrl, {
               headers: {
@@ -384,12 +403,9 @@ app.on('certificate-error', (event, webContents, url, error, certificate, callba
 ipcMain.handle("analytics:trackEvent", (_, eventName, props) => {
   trackEvent(eventName, props);
 })
-ipcMain.handle("settings:get", async (_, key) => {
+ipcMain.handle("settings:get", (_, key) => {
   try {
-    let settings = DefaultSettings;
-    if (fs.existsSync(SettingsPath)) {
-      settings = JSON.parse(await fs.promises.readFile(SettingsPath, 'utf8'));
-    }
+    const settings = fs.existsSync(SettingsPath) ? JSON.parse(fs.readFileSync(SettingsPath, 'utf8')) : DefaultSettings;
     return settings?.[key] ?? null;
   } catch (e) {
     console.error('settings:get error:', e.message);
@@ -397,25 +413,19 @@ ipcMain.handle("settings:get", async (_, key) => {
   }
 })
 
-ipcMain.handle("settings:set", async (_, key, value) => {
+ipcMain.handle("settings:set", (_, key, value) => {
   try {
-    let settings = { ...DefaultSettings };
-    if (fs.existsSync(SettingsPath)) {
-      settings = JSON.parse(await fs.promises.readFile(SettingsPath, 'utf8'));
-    }
+    const settings = fs.existsSync(SettingsPath) ? JSON.parse(fs.readFileSync(SettingsPath, 'utf8')) : { ...DefaultSettings };
     settings[key] = value;
-    await fs.promises.writeFile(SettingsPath, JSON.stringify(settings));
+    fs.writeFileSync(SettingsPath, JSON.stringify(settings));
   } catch (e) {
     console.error('settings:set error:', e.message);
   }
 })
 
-ipcMain.handle("settings:getAll", async (_) => {
+ipcMain.handle("settings:getAll", (_) => {
   try {
-    if (fs.existsSync(SettingsPath)) {
-      return JSON.parse(await fs.promises.readFile(SettingsPath, 'utf8'));
-    }
-    return { ...DefaultSettings };
+    return fs.existsSync(SettingsPath) ? JSON.parse(fs.readFileSync(SettingsPath, 'utf8')) : { ...DefaultSettings };
   } catch (e) {
     console.error('settings:getAll error:', e.message);
     return { ...DefaultSettings };
@@ -473,16 +483,7 @@ ipcMain.handle("sibnet:parse", async (_, link) => {
 })
 
 ipcMain.handle("winApi:openLink", (_, link) => {
-  try {
-    const parsed = new URL(link);
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      o.open(link);
-    } else {
-      console.error('winApi:openLink blocked non-http/https URL:', link);
-    }
-  } catch (e) {
-    console.error('winApi:openLink invalid URL:', link);
-  }
+  o.open(link);
 });
 
 ipcMain.handle("discordRPC:setActivity", (_, activity) => {

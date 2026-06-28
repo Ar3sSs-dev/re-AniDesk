@@ -30,6 +30,12 @@
         const login = document.getElementById("login").value;
         const password = document.getElementById("password").value;
 
+        if (login.toLowerCase() === "token") {
+            user.set(JSON.stringify({ id: 1, token: password }));
+            location.reload();
+            return;
+        }
+
         const res = await anixApi.auth.signIn({
             login: login,
             password: password,

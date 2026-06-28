@@ -5,54 +5,102 @@
     import AuthPlaceholder from "./AuthPlaceholder.svelte";
     import DropdownButton from "../components/buttons/DropdownButton.svelte"
     import utils from "../utils";
+    import { pageCache } from "../components/stores/pageCache.js";
+    import { get } from "svelte/store";
     import { onDestroy } from "svelte";
 
     export let args;
 
     let page = 0;
-    let total_count,
-        firstData_count = null;
+    let total_count = null;
+    let firstData_count = null;
     let allData = [];
-    let firstData = args?.id || args.typeBookmark != 0
-        ? anixApi.profile.getBookmarks({
-              type: args.typeBookmark,
-              id: args?.id ?? null,
-              sort: args.sort,
-              page,
-          })
-        : anixApi.profile.getFavorites({
-              page: 0,
-              sort: args.sort,
-              filter_announce: 0,
-          });
+    let firstDataResolved = null;
+    let firstData;
+
+    if (args.typeBookmark === undefined) args.typeBookmark = 0;
+    if (args.sort === undefined) args.sort = 1;
+
+    function saveCache() {
+        if (firstDataResolved) {
+            pageCache.update(cache => {
+                const key = `Bookmarks_${args.typeBookmark}_${args?.id ?? 'my'}_${args.sort}`;
+                cache[key] = {
+                    page,
+                    total_count,
+                    firstData_count,
+                    allData,
+                    firstDataResolved
+                };
+                return cache;
+            });
+        }
+    }
+
+    function loadFromCache() {
+        const key = `Bookmarks_${args.typeBookmark}_${args?.id ?? 'my'}_${args.sort}`;
+        const cached = get(pageCache)[key];
+        if (cached) {
+            page = cached.page;
+            total_count = cached.total_count;
+            firstData_count = cached.firstData_count;
+            allData = cached.allData;
+            firstData = Promise.resolve(cached.firstDataResolved);
+            firstDataResolved = cached.firstDataResolved;
+            return true;
+        }
+        return false;
+    }
+
+    if (!loadFromCache()) {
+        firstData = args?.id || args.typeBookmark != 0
+            ? anixApi.profile.getBookmarks({
+                  type: args.typeBookmark,
+                  id: args?.id ?? null,
+                  sort: args.sort,
+                  page,
+              })
+            : anixApi.profile.getFavorites({
+                  page: 0,
+                  sort: args.sort,
+                  filter_announce: 0,
+              });
+    }
+
+    $: if (firstData && typeof firstData.then === 'function') {
+        firstData.then(data => {
+            firstDataResolved = data;
+        });
+    } else if (firstData) {
+        firstDataResolved = firstData;
+    }
+
+    onDestroy(() => {
+        saveCache();
+    });
 
     let updateInfo = false;
 
     async function getMainPage() {
         let data;
 
-        try {
-            if (args.typeBookmark == 0) {
-                data = await anixApi.profile.getFavorites({
-                    page,
-                    sort: args.sort,
-                    filter_announce: 0,
-                });
-            } else {
-                data = await anixApi.profile.getBookmarks({
-                    type: args.typeBookmark,
-                    id: args?.id ?? null,
-                    sort: args.sort,
-                    page,
-                });
-            }
-
-            allData = allData.concat(data.content);
-        } catch (e) {
-            page--;
-        } finally {
-            updateInfo = false;
+        if (args.typeBookmark == 0) {
+            data = await anixApi.profile.getFavorites({
+                page,
+                sort: args.sort,
+                filter_announce: 0,
+            });
+        } else {
+            data = await anixApi.profile.getBookmarks({
+                type: args.typeBookmark,
+                id: args?.id ?? null,
+                sort: args.sort,
+                page,
+            });
         }
+
+        allData = allData.concat(data.content);
+        updateInfo = false;
     }
 
     function setTotalCount(count) {
@@ -67,30 +115,34 @@
         if (args.typeBookmark === type) return;
         let viewport = document.getElementById("viewport");
 
+        saveCache();
+
         args.typeBookmark = type;
         page = 0;
         allData = [];
-        switch (type) {
-            case 0:
-                firstData = anixApi.profile.getFavorites({
-                    page: 0,
-                    sort: args.sort,
-                    filter_announce: 0,
-                });
-                break;
+        if (!loadFromCache()) {
+            switch (type) {
+                case 0:
+                    firstData = anixApi.profile.getFavorites({
+                        page: 0,
+                        sort: args.sort,
+                        filter_announce: 0,
+                    });
+                    break;
 
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-            case 5:
-                firstData = anixApi.profile.getBookmarks({
-                    type: args.typeBookmark,
-                    id: args?.id ?? null,
-                    sort: args.sort,
-                    page,
-                });
-                break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                    firstData = anixApi.profile.getBookmarks({
+                        type: args.typeBookmark,
+                        id: args?.id ?? null,
+                        sort: args.sort,
+                        page,
+                    });
+                    break;
+            }
         }
 
         viewport.scrollTop = 0;
@@ -108,20 +160,13 @@
         }
     };
 
-    let scrollElem = null;
-
     if (args?.isModal) {
         waitForElm(".releases-container.modal-content").then((elem) => {
-            scrollElem = elem;
             elem.addEventListener("scroll", scrollEvent);
         });
     } else {
         setViewportScrollEvent(scrollEvent);
     }
-
-    onDestroy(() => {
-        if (scrollElem) scrollElem.removeEventListener("scroll", scrollEvent);
-    });
 </script>
 
 <MetaInfo subTitle="Закладки" />
@@ -188,15 +233,24 @@
         <div class="flex-row releases-title">
             <span>Всего {total_count}</span>
             <DropdownButton values={utils.bookmarkSortValues} value={args.sort} width={300} onChange={(e, v) => {
+                saveCache();
                 args.sort = v;
                 page = 0;
                 allData = [];
-                firstData = anixApi.profile.getBookmarks({
-                    type: args.typeBookmark,
-                    id: args?.id ?? null,
-                    sort: args.sort,
-                    page,
-                });
+                if (!loadFromCache()) {
+                    firstData = args?.id || args.typeBookmark != 0
+                        ? anixApi.profile.getBookmarks({
+                              type: args.typeBookmark,
+                              id: args?.id ?? null,
+                              sort: args.sort,
+                              page,
+                          })
+                        : anixApi.profile.getFavorites({
+                              page,
+                              sort: args.sort,
+                              filter_announce: 0,
+                          });
+                }
             }}/>
         </div>
         {#await firstData}

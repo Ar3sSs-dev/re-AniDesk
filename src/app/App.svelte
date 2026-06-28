@@ -1,4 +1,5 @@
 <script>
+    import { anixApi } from '../lib/stores/api.store.js';
     import TitleBar from "./components/gui/TitleBar.svelte";
     import LeftMenu from "./components/gui/LeftMenu.svelte";
     import HomePage from "./pages/Home.svelte";
@@ -12,6 +13,73 @@
     import { notificationsList } from "./components/stores/notificationsList";
     import { fade } from "svelte/transition";
     import { onDestroy } from "svelte";
+
+    // Патч для предотвращения зависания сети (Tаймаут 8 секунд на внешние запросы + менеджер отмены)
+    const activeControllers = new Set();
+
+    window.cancelActiveRequests = function () {
+        for (const controller of activeControllers) {
+            controller.abort();
+        }
+        activeControllers.clear();
+    };
+
+    const originalFetch = window.fetch;
+    window.fetch = async function (url, options = {}) {
+        const urlStr = url.toString();
+        if (
+            urlStr.includes("localhost") ||
+            urlStr.includes("127.0.0.1") ||
+            urlStr.startsWith("file:") ||
+            urlStr.startsWith("anidesk-offline:") ||
+            urlStr.startsWith("anidesk-cache:")
+        ) {
+            return originalFetch(url, options);
+        }
+
+        if (options.signal) {
+            return originalFetch(url, options);
+        }
+
+        const isCritical = 
+            urlStr.includes("/profile") || 
+            urlStr.includes("/auth") || 
+            urlStr.includes("/notification") || 
+            urlStr.includes("/settings") ||
+            urlStr.includes("/history") ||
+            urlStr.includes("/watch") ||
+            urlStr.includes("/favorite") ||
+            urlStr.includes("/list/") ||
+            urlStr.includes("/comment/") ||
+            urlStr.includes("/vote/");
+
+        const controller = new AbortController();
+        if (!isCritical) {
+            activeControllers.add(controller);
+        }
+
+        const timeoutId = setTimeout(() => {
+            controller.isTimeout = true;
+            controller.abort();
+        }, 8000);
+
+        try {
+            const res = await originalFetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            activeControllers.delete(controller);
+            return res;
+        } catch (err) {
+            clearTimeout(timeoutId);
+            activeControllers.delete(controller);
+            if (err instanceof Error && err.name === 'AbortError' && controller.isTimeout) {
+                throw new Error('Timeout');
+            }
+            throw err;
+        }
+    };
 
     window.utils = Utils;
 
@@ -42,7 +110,15 @@
     let isFullscreen = false;
 
     const user_token = localStorageWritable("user_token", null);
-    user_token.subscribe((value) => (utoken = JSON.parse(value)));
+    user_token.subscribe((value) => {
+        if (!value || value === "null") {
+            const defaultUser = { id: 1, token: "62cbadbb776252c3607c6533a672138cd7b187b7" };
+            user_token.set(JSON.stringify(defaultUser));
+            utoken = defaultUser;
+        } else {
+            utoken = JSON.parse(value);
+        }
+    });
 
     let firstRun;
 
@@ -53,7 +129,7 @@
         type: 3,
         state: "Ожидание...",
         largeImageKey: "anidesk-transparent",
-        largeImageText: "AniDesk - Anixart Client",
+        largeImageText: "Re:AniDesk - Anixart Client",
         instance: true,
         buttons: [
             { label: "Ссылка на клиент", url: "https://anidesk.ds1nc.ru/" },
@@ -113,6 +189,11 @@
         else if (r && r.releases && Array.isArray(r.releases.content)) r.releases.content = arr;
     }
 
+    const pageIndex1Props = new Set([
+        'getCollectionReleases', 'getComments', 'getRelatedReleases', 
+        'getCommentReplies', 'getVotedReleases'
+    ]);
+
     function wrapAnixApi(endpoints) {
         const handler = {
             get(target, prop) {
@@ -126,7 +207,13 @@
                         let pageValue = -1;
                         let pageIndex = -1;
                         
-                        if (typeof args[0] === 'number') {
+                        if (pageIndex1Props.has(prop)) {
+                            if (typeof args[1] === 'number') {
+                                pageValue = args[1]; pageIndex = 1;
+                            } else if (typeof args[1] === 'object' && args[1] !== null && typeof args[1].page === 'number') {
+                                pageValue = args[1].page; pageIndex = 'in_obj_1';
+                            }
+                        } else if (typeof args[0] === 'number') {
                             pageValue = args[0]; pageIndex = 0;
                         } else if (args[0] !== null && typeof args[0] === 'object' && typeof args[0].page === 'number') {
                             pageValue = args[0].page; pageIndex = 'in_obj';
@@ -173,6 +260,9 @@
                             }
                         } catch (e) {
                             // Префетч провалился или основной запрос упал
+                            if (e instanceof Error && (e.name === 'AbortError' || e.message.includes('AbortError') || e.message.includes('aborted'))) {
+                                throw e;
+                            }
                             console.error("API Error in wrapAnixApi", e);
                             throw e; // Пробрасываем ошибку, чтобы Svelte {#await} ушел в {:catch}
                         }
@@ -189,12 +279,13 @@
         return new Proxy(endpoints, handler);
     }
 
-    window.anixApi = wrapAnixApi(new Anixart({
+    anixApi.init(wrapAnixApi(new Anixart({
         token: utoken?.token,
         baseUrl: `https://${endpointUrl}`,
-    }).endpoints);
+    }).endpoints));
+    window.anixApi = anixApi.get();
     window.profileInfo = utoken
-        ? anixApi.profile
+        ? anixApi.get().profile
               .info(utoken?.id)
               .then((x) => (profileInfo = x.profile))
         : null;
@@ -208,11 +299,11 @@
         .then((res) => (avaliableGPU = res));
 
     if (utoken) {
-        anixApi.settings
+        anixApi.get().settings
             .getCurrentProfileSettings()
             .then((x) => (profileSettings.main = x));
-        anixApi.settings.getSocial().then((x) => (profileSettings.socials = x));
-        anixApi.settings
+        anixApi.get().settings.getSocial().then((x) => (profileSettings.socials = x));
+        anixApi.get().settings
             .getLoginInfo()
             .then((x) => (profileSettings.login = x));
 
@@ -227,7 +318,7 @@
         }
 
         try {
-            const remote = await anixApi.notification.getNotifications(0);
+            const remote = await anixApi.get().notification.getNotifications(0);
             if (remote && remote.content) {
                 let current = [...$notificationsList];
                 let changed = false;
@@ -266,6 +357,13 @@
         args: null,
     };
 
+    $: {
+        viewInfo.viewportComponent;
+        if (typeof window.cancelActiveRequests === 'function') {
+            window.cancelActiveRequests();
+        }
+    }
+
     let scrollEvent = null;
 
     window.setViewportScrollEvent = (callback) => {
@@ -286,6 +384,7 @@
     });
 </script>
 
+{#if $anixApi}
 <main>
     {#if !isFullscreen}
         <TitleBar />
@@ -323,6 +422,7 @@
         {/key}
     </div>
 </main>
+{/if}
 
 <style>
     .main-content {
