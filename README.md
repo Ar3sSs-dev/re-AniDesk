@@ -1,6 +1,6 @@
-# re:AniDesk (Custom Build)
+# AniDesk (Custom Build)
 
-[![VirusTotal](https://img.shields.io/badge/VirusTotal-1/70_Safe_(False_Positive)-success?logo=virustotal)](https://www.virustotal.com/gui/file/d32574d85a82f2a39fc9a88ca194cd05381f3fabc5d8f335e7669a72ea2c499c/detection)
+[![VirusTotal](https://img.shields.io/badge/VirusTotal-1/70_Safe_(False_Positive)-success?logo=virustotal)](https://www.virustotal.com/gui/file/5786cce8c4ff1a617cc2acf0f1e8f710fdb3415403aa5bb0ae476448125dad4c/detection)
 
 ![Интерфейс AniDesk](public/assets/images/screenshot.png)
 
