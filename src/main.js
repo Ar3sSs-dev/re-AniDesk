@@ -106,7 +106,7 @@ if (SettingsFirst.AutoUpdate) {
     const dialogOpts = {
       type: 'info',
       buttons: ['Перезапустить', 'Позже'],
-      title: 'Обновление Re:AniDesk',
+      title: 'Обновление AniDesk',
       message: process.platform === 'win32' ? releaseNotes : releaseName,
       detail:
         'Новая версия была скачана, перезапустите приложение для установки.'

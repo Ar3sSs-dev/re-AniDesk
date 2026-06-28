@@ -127,7 +127,7 @@
         type: 3,
         state: "Ожидание...",
         largeImageKey: "anidesk-transparent",
-        largeImageText: "Re:AniDesk - Anixart Client",
+        largeImageText: "AniDesk - Anixart Client",
         instance: true,
         buttons: [
             { label: "Ссылка на клиент", url: "https://anidesk.ds1nc.ru/" },
@@ -277,15 +277,17 @@
         return new Proxy(endpoints, handler);
     }
 
-    anixApi.init(wrapAnixApi(new Anixart({
+    const endpoints = wrapAnixApi(new Anixart({
         token: utoken?.token,
         baseUrl: `https://${endpointUrl}`,
-    }).endpoints));
-    window.anixApi = anixApi.get();
+    }).endpoints);
+    window.anixApi = endpoints;
+    anixApi.init(endpoints);
+    
     window.profileInfo = utoken
-        ? anixApi.get().profile
+        ? endpoints.profile
               .info(utoken?.id)
-              .then((x) => (profileInfo = x.profile))
+              .then((x) => (window.profileInfo = x.profile)).catch(console.error)
         : null;
     window.profileSettings = {
         main: null,

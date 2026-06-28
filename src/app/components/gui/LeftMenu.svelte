@@ -130,7 +130,7 @@
         }
     };
 
-    let myProfile = anixApi.profile.info(utoken?.id);
+    let myProfile = utoken ? anixApi.profile.info(utoken.id).catch(console.error) : null;
 </script>
 
 {#snippet defaultAvatar(callback)}
