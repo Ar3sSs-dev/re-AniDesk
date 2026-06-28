@@ -112,9 +112,7 @@
     const user_token = localStorageWritable("user_token", null);
     user_token.subscribe((value) => {
         if (!value || value === "null") {
-            const defaultUser = { id: 1, token: "62cbadbb776252c3607c6533a672138cd7b187b7" };
-            user_token.set(JSON.stringify(defaultUser));
-            utoken = defaultUser;
+            utoken = null;
         } else {
             utoken = JSON.parse(value);
         }
