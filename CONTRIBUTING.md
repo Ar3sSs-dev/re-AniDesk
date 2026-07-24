@@ -1,32 +1,40 @@
-# Contributing to AniDesk
+# Руководство по участию в разработке (Contributing to re:AniDesk)
 
-Thank you for contributing to AniDesk! Follow these guidelines to set up your environment and submit contributions.
+Спасибо за интерес к проекту **re:AniDesk**! Ниже описаны основные правила настройки окружения, отправки пулл-реквестов (PR) и требования к качеству кода.
 
-## Environment Setup
+---
 
-1. **Install Node.js**: Ensure you have Node.js 18+ installed on your system.
-2. **Install dependencies**:
+## 🛠️ Настройка локального окружения
+
+1. **Установите Node.js**: Требуется Node.js версии **18.x** или новее.
+2. **Установите зависимости**:
    ```bash
    npm install
    ```
-3. **Run local dev server**:
-   To start the Svelte hot reload server and Electron in development mode:
+3. **Запуск сервера разработки**:
+   Для запуска приложений Electron и Svelte в режиме горячей перезагрузки (Hot Reload):
    ```bash
    npm run electron-dev
    ```
 
 ---
 
-## Branching & Pull Requests
+## 🔀 Ветвление и Пулл-Реквесты (Pull Requests)
 
-- Work on a feature branch branch (e.g., `feat/my-feature` or `fix/my-bug`). Do not commit directly to `master` or `main`.
-- Open a Pull Request referencing the Issue or detailing the changes.
-- Ensure your Svelte build compiles clean (`npm run build`) before opening a PR.
+- Создавайте отдельную ветку для каждой фичи или бага (например, `feat/smart-player` или `fix/download-crash`).
+- Не делайте прямых коммитов в главные ветки `master` или `main`.
+- Перед созданием Pull Request убедитесь, что сборка проходит без ошибок:
+  ```bash
+  npm run build
+  ```
 
 ---
 
-## Code Quality & Commit Style
+## 🎨 Стандарты кода и коммитов
 
-- We use ESLint and Prettier for code consistency. Keep imports clean and avoid unreferenced variables.
-- Write descriptive commit messages matching Conventional Commits standards (e.g., `feat: Add playback speed selector`, `fix: Repair licensed release player crash`).
-- Avoid mixing styling tweaks with business logic. Keep commits atomic.
+- **Форматирование**: Следуйте стандартам ESLint и Prettier. Избегайте лишних импортов и неиспользуемых переменных.
+- **Оформление коммитов**: Использйте формат Conventional Commits:
+  - `feat: добавлено управление скоростью 1.25x`
+  - `fix: исправлен вылет плеера при потере сети`
+  - `refactor: оптимизация хранилища Svelte stores`
+- **Атомарность**: Не смешивайте правки интерфейса (UI) с изменениями бизнес-логики в одном коммите.

@@ -1,42 +1,44 @@
-# Project Architecture
+# Архитектура проекта re:AniDesk
 
-This document provides a high-level overview of the AniDesk codebase structure and details key implementation decisions.
-
-## Process Model
-
-AniDesk is a desktop application powered by Electron and Svelte. It runs in two main processes:
-
-1. **Main Process (`src/main.js`)**:
-   - Manages application lifecycles, main windows, menus, and system integration.
-   - Hosts the offline download manager (`src/downloader.js`).
-   - Implements custom protocol handlers to bypass security controls and load local cached files.
-   
-2. **Renderer Process (Svelte frontend)**:
-   - Built using Svelte. Compiled by Rollup into `public/build/bundle.js`.
-   - Communicates with the Main process asynchronously using Electron IPC via `src/preload.js`.
+Документ содержит верхнеуровневый обзор архитектуры **re:AniDesk**, описания процессов, кастомных протоколов и структуры хранения данных.
 
 ---
 
-## Codebase Map
+## 🏗️ Процессная модель
 
-- [src/main.js](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/src/main.js) — Entry point for the Electron Main process.
-- [src/preload.js](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/src/preload.js) — Exposes IPC events to the Svelte window context securely.
-- [src/downloader.js](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/src/downloader.js) — Offline downloading manager, file systems streams, and JSON library writer.
-- [public/](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/public/) — Static assets (assets, HTML template, and Svelte compiled output).
-- [src/app/](file:///C:/Users/Angel/.gemini/antigravity/brain/a05dc538-153c-4e92-abc2-f743841af6ec/scratch/repo/src/app/) — Svelte components, pages, state stores, and application logic.
+Приложение **re:AniDesk** построено на базе Electron и Svelte и работает в двух основных процессах:
+
+1. **Главный процесс (Main Process — `src/main.js`)**:
+   - Управление жизненным циклом приложения, окнами, меню и системным треем.
+   - Оффлайн-менеджер загрузок (`src/downloader.js`).
+   - Кастомные протоколы для обхода ограничений безопасности и воспроизведения файлов с диска.
+
+2. **Рендерер-процесс (Renderer Process — Svelte UI)**:
+   - Интерфейс на Svelte (компилируется Rollup в `public/build/bundle.js`).
+   - Безопасное асинхронное взаимодействие с Main process через Electron IPC (`src/preload.js`).
 
 ---
 
-## Custom Protocols & Storage
+## 📁 Карта репозитория
+
+- **`src/main.js`** — Точка входа главного процесса Electron.
+- **`src/preload.js`** — Безопасный мост (IPC) между Electron и Svelte контекстом.
+- **`src/downloader.js`** — Менеджер оффлайн-загрузок (HLS/m3u8, MP4 streams и запись файлов).
+- **`src/`** — Исходный код Svelte-компонентов, страниц, сторов (`lib/stores/`) и бизнес-логики.
+- **`public/`** — Статические ассеты (иконки, постеры, HTML-шаблон и скомпилированный бан Following).
+
+---
+
+## 🔒 Кастомные протоколы и Хранилище
 
 ### 1. `anidesk-cache://`
-- Used to load locally cached image files (avatars, posters).
-- Maps URLs using md5 hash of the original image address to keep file system queries fast.
+- Загрузка локально кэшированных постеров и аватаров.
+- Использует MD5-хеширование URL адресов для быстрого поиска файлов на диске.
 
 ### 2. `anidesk-offline://`
-- Decodes a hex-encoded file path pointing to offline-downloaded episodes on user storage.
-- Allows the HTML5 `<video>` element to play local raw streams directly without throwing browser security sandbox exceptions.
+- Декодирует hex-кодированный путь к оффлайн-файлам видео на диске пользователя.
+- Позволяет HTML5 `<video>` плееру воспроизводить локальные видеофайлы без ограничений безопасности браузерной песочницы.
 
-### 3. Library Persistence (`library.json`)
-- Offline downloads catalog is saved under the user AppData folder in `library.json`.
-- Uses an atomic write strategy: writes to `library.json.tmp` first, then renames it to `library.json` to prevent file corruption in case of unexpected application crashes.
+### 3. Атомарное сохранение библиотеки (`library.json`)
+- Каталог оффлайн-загрузок сохраняется в папку AppData пользователя в файл `library.json`.
+- Использует стратегию атомарной записи: сначала данные пишутся во временный файл `library.json.tmp`, который затем переименовывается в `library.json` во избежание повреждения базы при сбоях.
